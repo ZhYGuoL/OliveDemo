@@ -13,9 +13,10 @@ interface ChatSidebarProps {
   messages: Message[]
   input: string
   setInput: (value: string) => void
+  sidebarCollapsed: boolean
 }
 
-export function ChatSidebar({ isOpen, onClose, onSendMessage, loading, messages, input, setInput }: ChatSidebarProps) {
+export function ChatSidebar({ isOpen, onClose, onSendMessage, loading, messages, input, setInput, sidebarCollapsed }: ChatSidebarProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -36,7 +37,7 @@ export function ChatSidebar({ isOpen, onClose, onSendMessage, loading, messages,
   }
 
   return (
-    <aside className={`chat-sidebar ${isOpen ? 'open' : ''}`}>
+    <aside className={`chat-sidebar ${isOpen ? 'open' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <div className="chat-header">
         <h2>Chat</h2>
         <button className="chat-close" onClick={onClose}>×</button>

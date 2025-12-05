@@ -543,7 +543,7 @@
   z-index: 100;
 }
 
-.app:has(.sidebar.collapsed) .chat-sidebar {
+.chat-sidebar.sidebar-collapsed {
   left: 70px;
 }
 
