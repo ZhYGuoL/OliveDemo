@@ -50,28 +50,40 @@ export function ChatSidebar({ isOpen, onClose, onSendMessage, loading, messages,
         )}
         {messages.map((msg, idx) => (
           <div key={idx} className={`chat-message ${msg.role}`}>
+            <div className="message-author">
+              {msg.role === 'user' ? 'You' : 'Assistant'}
+            </div>
             <div className="message-content">{msg.content}</div>
           </div>
         ))}
         {loading && (
           <div className="chat-message assistant">
+            <div className="message-author">Assistant</div>
             <div className="message-content">Generating...</div>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
       <form onSubmit={handleSubmit} className="chat-input-form">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask a follow-up question..."
-          disabled={loading}
-          className="chat-input"
-        />
-        <button type="submit" disabled={loading || !input.trim()} className="chat-send">
-          →
-        </button>
+        <div className="chat-input-wrapper">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask a question..."
+            disabled={loading}
+            className="chat-input"
+          />
+          <div className="chat-input-actions">
+            <button type="button" className="chat-edit-button">Edit</button>
+            <button type="submit" disabled={loading || !input.trim()} className="chat-ask-button">
+              Ask
+            </button>
+          </div>
+        </div>
+        <div className="chat-disclaimer">
+          AI can make mistakes. Verify generations before use.
+        </div>
       </form>
     </aside>
   )
