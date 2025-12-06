@@ -1,12 +1,21 @@
 """FastAPI backend server."""
+import logging
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from dotenv import load_dotenv
 import database
 import llm_service
 
-app = FastAPI(title="Personal Olive API")
+# Load environment variables from .env file
+load_dotenv()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="Dashboard Generator API")
 
 # CORS middleware for frontend
 app.add_middleware(
@@ -25,10 +34,57 @@ class GenerateDashboardResponse(BaseModel):
     reactComponent: str
     dataPreview: List[Dict[str, Any]]
 
+class ConnectRequest(BaseModel):
+    database_url: str
+
 @app.get("/health")
 async def health():
     """Health check endpoint."""
     return {"status": "ok"}
+
+@app.post("/connect")
+async def connect_database(request: ConnectRequest):
+    """
+    Connect to a database by setting the DATABASE_URL.
+    """
+    try:
+        # Validate the connection string by trying to create an adapter
+        from database_adapters import get_database_adapter
+        adapter = get_database_adapter(database_url=request.database_url, db_path=None)
+        
+        # Test the connection
+        conn = adapter.connect()
+        conn.close()
+        
+        # Set the environment variable (in-memory for this session)
+        os.environ["DATABASE_URL"] = request.database_url
+        
+        # Reset the database adapter singleton to use the new connection
+        import database
+        database._adapter = None
+        
+        return {"status": "connected", "message": "Database connected successfully"}
+    except Exception as e:
+        logger.error(f"Database connection error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to connect to database: {str(e)}"
+        )
+
+@app.get("/schema")
+async def get_schema():
+    """
+    Get database schema to verify connection.
+    """
+    try:
+        schema = database.get_schema_ddl()
+        return {"schema": schema, "connected": True}
+    except Exception as e:
+        logger.error(f"Schema retrieval error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve schema: {str(e)}"
+        )
 
 @app.post("/generate_dashboard", response_model=GenerateDashboardResponse)
 async def generate_dashboard(request: GenerateDashboardRequest):
@@ -41,13 +97,17 @@ async def generate_dashboard(request: GenerateDashboardRequest):
         
         # Generate SQL and React component via LLM
         try:
+            logger.info(f"Generating dashboard for prompt: {request.prompt[:100]}")
             llm_result = llm_service.generate_dashboard(request.prompt, db_schema_ddl)
+            logger.info("Successfully generated dashboard")
         except ValueError as e:
+            logger.error(f"JSON parsing error: {str(e)}")
             raise HTTPException(
                 status_code=500,
                 detail=f"Model returned invalid JSON. Please try again or simplify the request. Error: {str(e)}"
             )
         except Exception as e:
+            logger.error(f"LLM service error: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=500,
                 detail=f"LLM service error: {str(e)}"

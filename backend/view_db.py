@@ -5,7 +5,7 @@ from datetime import datetime
 
 # Database path relative to backend directory
 _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(_BACKEND_DIR, "olive_demo.db")
+DB_PATH = os.path.join(_BACKEND_DIR, "demo.db")
 
 def view_database():
     """Display all entries from the database."""

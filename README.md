@@ -1,4 +1,4 @@
-# Personal Olive
+# Dashboard Generator
 
 A local dashboard generator that converts natural language prompts into SQL queries and React components.
 
@@ -6,7 +6,7 @@ A local dashboard generator that converts natural language prompts into SQL quer
 
 - **Backend**: Python + FastAPI
 - **Frontend**: React + TypeScript  
-- **Database**: SQLite
+- **Database**: SQLite (default), PostgreSQL, Supabase, or MySQL
 - **LLM**: Ollama (local)
 
 ## Prerequisites
@@ -41,6 +41,51 @@ pip install -r requirements.txt
 python init_db.py  # Initialize database with sample data
 ```
 
+**Database Configuration:**
+
+The application supports multiple database backends through a flexible adapter system:
+
+**SQLite (Default - No configuration needed):**
+```bash
+# Just run init_db.py - no setup required
+python init_db.py
+```
+
+**PostgreSQL / Supabase:**
+```bash
+# PostgreSQL connection string format:
+export DATABASE_URL=postgresql://username:password@localhost:5432/dbname
+
+# Supabase connection string format:
+export DATABASE_URL=postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+
+# Then initialize the database:
+python init_db.py
+```
+
+**MySQL:**
+```bash
+# MySQL connection string format:
+export DATABASE_URL=mysql://username:password@localhost:3306/dbname
+
+# Then initialize the database:
+python init_db.py
+```
+
+You can also create a `.env` file in the `backend/` directory:
+```
+# For PostgreSQL/Supabase
+DATABASE_URL=postgresql://username:password@localhost:5432/dbname
+
+# For MySQL
+DATABASE_URL=mysql://username:password@localhost:3306/dbname
+
+# Optional: Override SQLite database path (only used if DATABASE_URL is not set)
+DB_PATH=./demo.db
+```
+
+**Note:** SQLite is the default and requires no configuration. It's perfect for local development and demos. For production or multi-user scenarios, use PostgreSQL, Supabase, or MySQL.
+
 Start the backend server:
 ```bash
 uvicorn main:app --reload
@@ -74,14 +119,14 @@ The frontend will run on `http://localhost:5173`
 ## Project Structure
 
 ```
-OliveDemo/
+DashboardDemo/
 ├── backend/
 │   ├── main.py              # FastAPI server
 │   ├── database.py          # Database layer (schema introspection, SQL execution)
 │   ├── llm_service.py       # Ollama LLM integration
 │   ├── init_db.py           # Database initialization script
 │   ├── requirements.txt     # Python dependencies
-│   └── olive_demo.db        # SQLite database (created after init_db.py)
+│   └── demo.db        # SQLite database (created after init_db.py)
 ├── frontend/
 │   ├── src/
 │   │   ├── App.tsx          # Main React component
@@ -142,6 +187,11 @@ Generate SQL query and React component from natural language prompt.
 **Database errors:**
 - Run `python backend/init_db.py` to recreate the database
 - Check file permissions in the `backend/` directory
+- For PostgreSQL/Supabase: Ensure the database exists and credentials are correct
+- For PostgreSQL/Supabase: Verify `psycopg2-binary` is installed: `pip install psycopg2-binary`
+- For MySQL: Ensure the database exists and credentials are correct
+- For MySQL: Verify `pymysql` is installed: `pip install pymysql`
+- Verify your `DATABASE_URL` format matches the expected connection string format
 
 **Frontend can't reach backend:**
 - Verify backend is running on port 8000

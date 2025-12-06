@@ -1,28 +1,57 @@
-"""Initialize the SQLite database with schema and sample data."""
-import sqlite3
+"""Initialize the database (PostgreSQL, Supabase, or MySQL) with schema and sample data."""
 import os
 from datetime import datetime, timedelta
 import random
+from dotenv import load_dotenv
+from database_adapters import get_database_adapter, DatabaseAdapter
 
-# Database path relative to backend directory
-_BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(_BACKEND_DIR, "olive_demo.db")
+# Load environment variables from .env file
+load_dotenv()
+
+# Database configuration
+DATABASE_URL = os.getenv("DATABASE_URL", None)
 
 def init_database():
     """Create database schema and seed with sample data."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL is required. Please set it as an environment variable or connect via the UI.")
     
-    # Create expenses table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS expenses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT NOT NULL,
-            category TEXT NOT NULL,
-            amount REAL NOT NULL,
-            description TEXT
-        )
-    """)
+    adapter = get_database_adapter(database_url=DATABASE_URL, db_path=None)
+    conn = adapter.connect()
+    cursor = conn.cursor()
+    param_style = adapter.get_parameter_style()
+    
+    # Determine database type for SQL syntax
+    from urllib.parse import urlparse
+    parsed = urlparse(DATABASE_URL)
+    if parsed.scheme.startswith("postgres"):
+        db_type = "postgresql"
+    elif parsed.scheme.startswith("mysql"):
+        db_type = "mysql"
+    else:
+        raise ValueError(f"Unsupported database type: {parsed.scheme}")
+    
+    # Create expenses table (database-specific syntax)
+    if db_type == "postgresql":
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS expenses (
+                id SERIAL PRIMARY KEY,
+                date DATE NOT NULL,
+                category VARCHAR(100) NOT NULL,
+                amount DECIMAL(10, 2) NOT NULL,
+                description TEXT
+            )
+        """)
+    elif db_type == "mysql":
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS expenses (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                date DATE NOT NULL,
+                category VARCHAR(100) NOT NULL,
+                amount DECIMAL(10, 2) NOT NULL,
+                description TEXT
+            )
+        """)
     
     # Clear existing data
     cursor.execute("DELETE FROM expenses")
@@ -48,14 +77,13 @@ def init_database():
         
         expenses.append((date, category, amount, description))
     
-    cursor.executemany(
-        "INSERT INTO expenses (date, category, amount, description) VALUES (?, ?, ?, ?)",
-        expenses
-    )
+    # Insert data using the correct parameter style
+    insert_sql = f"INSERT INTO expenses (date, category, amount, description) VALUES ({param_style}, {param_style}, {param_style}, {param_style})"
+    cursor.executemany(insert_sql, expenses)
     
     conn.commit()
     conn.close()
-    print(f"Database initialized with {len(expenses)} expenses")
+    print(f"Database ({db_type}) initialized with {len(expenses)} expenses")
 
 if __name__ == "__main__":
     init_database()

@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import { DynamicDashboard } from './components/DynamicDashboard'
 import { ChatSidebar } from './components/ChatSidebar'
+import { DataSourceModal } from './components/DataSourceModal'
+import { ConnectionForm } from './components/ConnectionForm'
 
 interface DashboardResponse {
   sql: string
@@ -14,11 +16,15 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<DashboardResponse | null>(null)
-  const [dbConnected] = useState(true) // For now, assume DB is connected
+  const [dbConnected, setDbConnected] = useState(false)
   const [showChat, setShowChat] = useState(false)
   const [chatHistory, setChatHistory] = useState<Array<{role: 'user' | 'assistant', content: string}>>([])
   const [chatInput, setChatInput] = useState('')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [showSQL, setShowSQL] = useState(false)
+  const [showCode, setShowCode] = useState(false)
+  const [showDataSourceModal, setShowDataSourceModal] = useState(false)
+  const [showConnectionForm, setShowConnectionForm] = useState(false)
+  const [selectedDataSource, setSelectedDataSource] = useState<'postgresql' | 'supabase' | 'mysql' | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,7 +47,12 @@ function App() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
+        let errorData
+        try {
+          errorData = await response.json()
+        } catch {
+          errorData = { detail: `Server error: ${response.status} ${response.statusText}` }
+        }
         throw new Error(errorData.detail || 'Failed to generate dashboard')
       }
 
@@ -59,7 +70,12 @@ function App() {
         content: `I've generated a dashboard based on your request: "${userMessage}". The dashboard is displayed below.`
       }])
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'An unexpected error occurred'
+      let errorMsg = 'An unexpected error occurred'
+      if (err instanceof TypeError && err.message.includes('fetch')) {
+        errorMsg = 'Failed to connect to backend server. Make sure the backend is running on http://localhost:8000'
+      } else if (err instanceof Error) {
+        errorMsg = err.message
+      }
       setError(errorMsg)
       setChatHistory(prev => [...prev, {
         role: 'assistant',
@@ -67,6 +83,57 @@ function App() {
       }])
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Check database connection status on mount
+  useEffect(() => {
+    checkDatabaseConnection()
+  }, [])
+
+  const checkDatabaseConnection = async () => {
+    try {
+      // Try to get schema to verify database connection
+      const schemaResponse = await fetch('http://localhost:8000/schema')
+      if (schemaResponse.ok) {
+        const data = await schemaResponse.json()
+        setDbConnected(data.connected || false)
+      } else {
+        setDbConnected(false)
+      }
+    } catch (err) {
+      setDbConnected(false)
+    }
+  }
+
+  const handleDataSourceSelect = (type: 'postgresql' | 'supabase' | 'mysql') => {
+    setSelectedDataSource(type)
+    setShowDataSourceModal(false)
+    setShowConnectionForm(true)
+  }
+
+  const handleConnect = async (connectionString: string) => {
+    try {
+      const response = await fetch('http://localhost:8000/connect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ database_url: connectionString }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || 'Failed to connect to database')
+      }
+
+      // Verify connection by checking schema
+      await checkDatabaseConnection()
+      setShowConnectionForm(false)
+      setSelectedDataSource(null)
+      setError(null)
+    } catch (err) {
+      throw err
     }
   }
 
@@ -84,127 +151,79 @@ function App() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
+        let errorData
+        try {
+          errorData = await response.json()
+        } catch {
+          errorData = { detail: `Server error: ${response.status} ${response.statusText}` }
+        }
         throw new Error(errorData.detail || 'Failed to generate dashboard')
       }
 
       const data: DashboardResponse = await response.json()
       setResult(data)
+      setError(null) // Clear any previous errors
       setChatHistory(prev => [...prev, {
         role: 'assistant',
         content: `I've updated the dashboard based on your request.`
       }])
     } catch (err) {
+      let errorMsg = 'Failed to process request'
+      if (err instanceof TypeError && err.message.includes('fetch')) {
+        errorMsg = 'Failed to connect to backend server. Make sure the backend is running on http://localhost:8000'
+      } else if (err instanceof Error) {
+        errorMsg = err.message
+      }
+      setError(errorMsg)
       setChatHistory(prev => [...prev, {
         role: 'assistant',
-        content: `Error: ${err instanceof Error ? err.message : 'Failed to process request'}`
+        content: `Error: ${errorMsg}`
       }])
     } finally {
       setLoading(false)
     }
   }
 
-  const renderDataPreview = () => {
-    if (!result || !result.dataPreview || result.dataPreview.length === 0) {
-      return <p>No data to preview</p>
-    }
-
-    const columns = Object.keys(result.dataPreview[0])
-    
-    return (
-      <table className="data-table">
-        <thead>
-          <tr>
-            {columns.map((col) => (
-              <th key={col}>{col}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {result.dataPreview.map((row, idx) => (
-            <tr key={idx}>
-              {columns.map((col) => (
-                <td key={col}>{String(row[col] ?? '')}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    )
-  }
 
   return (
     <div className="app">
-      <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+      <aside className="sidebar">
         <div className="sidebar-logo">
           <div className="logo-circle">O</div>
-          <button 
-            className="sidebar-toggle" 
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {sidebarCollapsed ? '→' : '←'}
-          </button>
         </div>
         
-        {!sidebarCollapsed && (
-          <>
-            <button className="create-app-button">Create new app</button>
-            
-            <div className="sidebar-section">
-              <div className="section-header">
-                <span>APPS</span>
-                <span className="section-icon">━</span>
-              </div>
-              <div className="section-content">No apps yet</div>
-            </div>
-            
-            <div className="sidebar-section">
-              <div className="section-header">
-                <span>CONNECT</span>
-              </div>
-              <div className="data-source-card">
-                <span className="data-source-icon">📊</span>
-                <span>Data sources</span>
-              </div>
-            </div>
-            
-            <div className="sidebar-footer">
-              <div className="user-profile">
-                <div className="user-avatar">ZG</div>
-                <div className="user-info">
-                  <div className="user-name">Zhiyuan Guo</div>
-                  <div className="user-org">
-                    Peanuts Inc.
-                    <span className="dropdown-arrow">▼</span>
-                  </div>
+        <button className="create-app-button">Create new app</button>
+        
+        <div className="sidebar-section">
+          <div className="section-header">
+            <span>APPS</span>
+            <span className="section-icon">━</span>
+          </div>
+          <div className="section-content">No apps yet</div>
+        </div>
+        
+        <div className="sidebar-section">
+          <div className="section-header">
+            <span>CONNECT</span>
+          </div>
+          <div className="data-source-card">
+            <span className="data-source-icon">📊</span>
+            <span>Data sources</span>
+          </div>
+        </div>
+        
+        <div className="sidebar-footer">
+            <div className="user-profile">
+              <div className="user-avatar">ZG</div>
+              <div className="user-info">
+                <div className="user-name">Zhiyuan Guo</div>
+                <div className="user-org">
+                  Peanuts Inc.
+                  <span className="dropdown-arrow">▼</span>
                 </div>
               </div>
             </div>
-          </>
-        )}
-        
-        {sidebarCollapsed && (
-          <div className="sidebar-collapsed-content">
-            <div className="sidebar-section">
-              <div className="section-header-collapsed">
-                <span className="section-icon">━</span>
-              </div>
-            </div>
-            
-            <div className="sidebar-section">
-              <div className="data-source-card-collapsed" title="Data sources">
-                <span className="data-source-icon">📊</span>
-              </div>
-            </div>
-            
-            <div className="sidebar-footer">
-              <div className="user-profile-collapsed" title="Zhiyuan Guo - Peanuts Inc.">
-                <div className="user-avatar">ZG</div>
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
       </aside>
 
       {showChat && (
@@ -216,11 +235,28 @@ function App() {
           messages={chatHistory}
           input={chatInput}
           setInput={setChatInput}
-          sidebarCollapsed={sidebarCollapsed}
+          sidebarCollapsed={false}
         />
       )}
 
-      <main className={`main-content ${showChat ? 'with-chat' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      <DataSourceModal
+        isOpen={showDataSourceModal}
+        onClose={() => setShowDataSourceModal(false)}
+        onSelect={handleDataSourceSelect}
+      />
+
+      {showConnectionForm && selectedDataSource && (
+        <ConnectionForm
+          type={selectedDataSource}
+          onConnect={handleConnect}
+          onCancel={() => {
+            setShowConnectionForm(false)
+            setSelectedDataSource(null)
+          }}
+        />
+      )}
+
+      <main className={`main-content ${showChat ? 'with-chat' : ''}`}>
         {!result && (
           <>
             <div className="content-header">
@@ -257,7 +293,12 @@ function App() {
               <div className="db-connect-box">
                 <p className="db-connect-title">You haven't connected a database.</p>
                 <p className="db-connect-description">To get started, connect a data source to generate tools from.</p>
-                <button className="connect-button">Connect a data source</button>
+                <button 
+                  className="connect-button"
+                  onClick={() => setShowDataSourceModal(true)}
+                >
+                  Connect a data source
+                </button>
               </div>
             )}
           </>
@@ -271,27 +312,51 @@ function App() {
 
         {result && (
           <div className="result-section">
+            <div className="dashboard-header-bar">
+              <div className="dashboard-header-left">
+                <h1 className="dashboard-header-title">Margin Insights Dashboard</h1>
+                <div className="dashboard-header-meta">
+                  <span className="db-icon-small">🗄️</span>
+                  <span className="dashboard-url">dashboard.com/dashboards/margin-insights</span>
+                </div>
+              </div>
+              <div className="dashboard-header-actions">
+                <button className="header-action-button" onClick={() => setShowSQL(!showSQL)}>
+                  <span>Preview SQL</span>
+                </button>
+                <button className="header-action-icon" title="Code" onClick={() => setShowCode(!showCode)}>
+                  <span>💻</span>
+                </button>
+                <button className="header-action-button primary">
+                  <span>Share</span>
+                </button>
+              </div>
+            </div>
+            
             <div className="dashboard-container">
-              <h2 className="dashboard-title">Dashboard</h2>
               <DynamicDashboard
                 componentCode={result.reactComponent}
                 data={result.dataPreview}
               />
             </div>
 
-            <div className="result-panel">
-              <h2>Generated SQL</h2>
-              <pre className="code-block">
-                <code>{result.sql}</code>
-              </pre>
-            </div>
+            {showSQL && (
+              <div className="result-panel">
+                <h2>Generated SQL</h2>
+                <pre className="code-block">
+                  <code>{result.sql}</code>
+                </pre>
+              </div>
+            )}
 
-            <div className="result-panel">
-              <h2>Component Code</h2>
-              <pre className="code-block">
-                <code>{result.reactComponent}</code>
-              </pre>
-            </div>
+            {showCode && (
+              <div className="result-panel">
+                <h2>Component Code</h2>
+                <pre className="code-block">
+                  <code>{result.reactComponent}</code>
+                </pre>
+              </div>
+            )}
           </div>
         )}
       </main>

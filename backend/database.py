@@ -1,34 +1,34 @@
 """Database layer for schema introspection and SQL execution."""
-import sqlite3
 import os
 from typing import List, Dict, Any
+from dotenv import load_dotenv
+from database_adapters import get_database_adapter, DatabaseAdapter
 
-# Database path relative to backend directory
-_BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.getenv("DB_PATH", os.path.join(_BACKEND_DIR, "olive_demo.db"))
+# Load environment variables from .env file
+load_dotenv()
+
+# Database configuration
+DATABASE_URL = os.getenv("DATABASE_URL", None)
+
+# Create database adapter instance (singleton pattern)
+_adapter: DatabaseAdapter = None
+
+def _get_adapter() -> DatabaseAdapter:
+    """Get or create the database adapter instance."""
+    global _adapter
+    if _adapter is None:
+        if not DATABASE_URL:
+            raise RuntimeError("No database connected. Please connect a data source first.")
+        _adapter = get_database_adapter(database_url=DATABASE_URL, db_path=None)
+    return _adapter
 
 def get_schema_ddl() -> str:
     """
     Introspect the database schema and return DDL as a string.
     Returns all CREATE TABLE statements.
     """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    # Get all table names
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    tables = cursor.fetchall()
-    
-    ddl_parts = []
-    for (table_name,) in tables:
-        # Get CREATE TABLE statement (using parameterized query for safety)
-        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
-        result = cursor.fetchone()
-        if result and result[0]:
-            ddl_parts.append(result[0])
-    
-    conn.close()
-    return "\n\n".join(ddl_parts)
+    adapter = _get_adapter()
+    return adapter.get_schema_ddl()
 
 def execute_select_query(sql: str, limit: int = 100) -> List[Dict[str, Any]]:
     """
@@ -57,26 +57,6 @@ def execute_select_query(sql: str, limit: int = 100) -> List[Dict[str, Any]]:
         if f" {keyword} " in sql_normalized:
             raise ValueError(f"Query contains forbidden keyword: {keyword}")
     
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # Enable column access by name
-    cursor = conn.cursor()
-    
-    try:
-        # Apply limit if not already present
-        if "LIMIT" not in sql_upper:
-            sql_with_limit = f"{sql.rstrip(';')} LIMIT {limit}"
-        else:
-            sql_with_limit = sql
-        
-        cursor.execute(sql_with_limit)
-        rows = cursor.fetchall()
-        
-        # Convert to list of dictionaries
-        result = [dict(row) for row in rows]
-        
-        conn.close()
-        return result
-    except sqlite3.Error as e:
-        conn.close()
-        raise ValueError(f"SQL execution failed: {str(e)}")
+    adapter = _get_adapter()
+    return adapter.execute_select_query(sql, limit)
 
