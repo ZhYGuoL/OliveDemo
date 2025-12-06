@@ -38,3 +38,12 @@ frontend/.vite/
 .DS_Store
 Thumbs.db
 
+# Data files
+data/
+*.csv
+*.xlsx
+*.xls
+
+# Kaggle
+.kaggle/
+

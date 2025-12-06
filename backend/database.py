@@ -7,19 +7,22 @@ from database_adapters import get_database_adapter, DatabaseAdapter
 # Load environment variables from .env file
 load_dotenv()
 
-# Database configuration
-DATABASE_URL = os.getenv("DATABASE_URL", None)
-
 # Create database adapter instance (singleton pattern)
 _adapter: DatabaseAdapter = None
+_current_database_url: str = None
 
 def _get_adapter() -> DatabaseAdapter:
     """Get or create the database adapter instance."""
-    global _adapter
-    if _adapter is None:
-        if not DATABASE_URL:
+    global _adapter, _current_database_url
+    # Read DATABASE_URL at runtime, not import time
+    database_url = os.getenv("DATABASE_URL", None)
+    
+    # Reset adapter if DATABASE_URL changed or adapter doesn't exist
+    if _adapter is None or _current_database_url != database_url:
+        if not database_url:
             raise RuntimeError("No database connected. Please connect a data source first.")
-        _adapter = get_database_adapter(database_url=DATABASE_URL, db_path=None)
+        _adapter = get_database_adapter(database_url=database_url, db_path=None)
+        _current_database_url = database_url
     return _adapter
 
 def get_schema_ddl() -> str:

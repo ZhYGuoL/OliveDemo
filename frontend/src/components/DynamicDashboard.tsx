@@ -147,12 +147,21 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
         throw new Error(`Component is not a function. Type: ${typeof Component}, Value: ${Component}`)
       }
 
-      // Create new root only if it doesn't exist
-      let root = rootRef.current
-      if (!root) {
-        root = ReactDOM.createRoot(containerRef.current!)
-        rootRef.current = root
+      // Always create a new root to ensure clean state
+      // Unmount existing root if it exists
+      if (rootRef.current) {
+        rootRef.current.unmount()
+        rootRef.current = null
       }
+      
+      // Clear container
+      if (containerRef.current) {
+        containerRef.current.innerHTML = ''
+      }
+      
+      // Create new root
+      const root = ReactDOM.createRoot(containerRef.current!)
+      rootRef.current = root
       
       console.log('Rendering component with data:', data?.length || 0, 'rows')
       
@@ -163,23 +172,53 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
         setError(`Runtime Error: ${err.message}`)
       }
 
+      // Render the component
+      const element = React.createElement(Component, { data })
+      console.log('Created React element:', element)
+      
       root.render(
         <ErrorBoundary onError={handleRenderError}>
-          {React.createElement(Component, { data })}
+          {element}
         </ErrorBoundary>
       )
       
       console.log('Component render scheduled')
       setRenderAttempted(true)
         
-      // Check after a short delay if the container is still empty
-      setTimeout(() => {
-        if (containerRef.current && containerRef.current.children.length === 0) {
-          console.warn('Dashboard container appears empty after render')
-          // Only set error if we didn't already catch one
-          // This might happen if the component returns null/false
-        }
-      }, 1000)
+      // Check after render completes if the container is still empty
+      // Use requestAnimationFrame to check after React has flushed updates
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (containerRef.current) {
+            const hasChildren = containerRef.current.children.length > 0
+            const hasTextContent = containerRef.current.textContent && containerRef.current.textContent.trim().length > 0
+            console.log('Container check:', {
+              hasChildren,
+              childrenCount: containerRef.current.children.length,
+              hasTextContent,
+              innerHTML: containerRef.current.innerHTML.substring(0, 200)
+            })
+            
+            if (!hasChildren && !hasTextContent) {
+              console.warn('Dashboard container appears empty after render')
+              // Try to render a simple test component to verify React root works
+              const testElement = React.createElement('div', { style: { padding: '20px', color: 'red' } }, 'Test render')
+              root.render(testElement)
+              setTimeout(() => {
+                if (containerRef.current?.textContent?.includes('Test render')) {
+                  console.log('React root works, issue is with the component')
+                  // Re-render the actual component
+                  root.render(
+                    <ErrorBoundary onError={handleRenderError}>
+                      {element}
+                    </ErrorBoundary>
+                  )
+                }
+              }, 100)
+            }
+          }
+        }, 500)
+      })
 
     } catch (err) {
       console.error('Error rendering component:', err)

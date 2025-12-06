@@ -5,11 +5,11 @@
   right: 0;
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1001;
-  backdrop-filter: blur(4px);
 }
 
 .connection-form-content {
@@ -95,7 +95,7 @@
 .connection-string-input {
   width: 100%;
   padding: 0.875rem 1rem;
-  border: 2px solid #1a5f3f;
+  border: 2px solid #0f4a28;
   border-radius: 8px;
   font-size: 0.95rem;
   font-family: 'Courier New', Courier, monospace;
@@ -105,7 +105,7 @@
 
 .connection-string-input:focus {
   outline: none;
-  border-color: #1a5f3f;
+  border-color: #0f4a28;
   box-shadow: 0 0 0 3px rgba(26, 95, 63, 0.1);
 }
 
@@ -157,14 +157,14 @@
 }
 
 .form-button.connect {
-  background-color: #1a5f3f;
+  background-color: #0f4a28;
   color: white;
   padding: 0.75rem 2rem;
   min-width: 180px;
 }
 
 .form-button.connect:hover:not(:disabled) {
-  background-color: #155030;
+  background-color: #0a3d1f;
 }
 
 .form-button:disabled {

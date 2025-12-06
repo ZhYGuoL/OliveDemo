@@ -5,11 +5,11 @@
   right: 0;
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(4px);
 }
 
 .modal-content {
@@ -84,12 +84,12 @@
 }
 
 .data-source-card-modal:hover {
-  border-color: #1a5f3f;
+  border-color: #0f4a28;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .data-source-card-modal.selected {
-  border-color: #1a5f3f;
+  border-color: #0f4a28;
   background-color: #f0fdf4;
 }
 

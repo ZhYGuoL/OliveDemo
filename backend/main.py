@@ -50,11 +50,31 @@ async def connect_database(request: ConnectRequest):
     try:
         # Validate the connection string by trying to create an adapter
         from database_adapters import get_database_adapter
-        adapter = get_database_adapter(database_url=request.database_url, db_path=None)
+        import asyncio
         
-        # Test the connection
-        conn = adapter.connect()
-        conn.close()
+        # Run connection test in a thread pool with timeout
+        async def test_connection():
+            loop = asyncio.get_event_loop()
+            adapter = get_database_adapter(database_url=request.database_url, db_path=None)
+            # Run blocking connection in thread pool
+            conn = await loop.run_in_executor(None, adapter.connect)
+            try:
+                # Quick test query
+                cursor = conn.cursor()
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+                cursor.close()
+            finally:
+                conn.close()
+        
+        # Test connection with 10 second timeout
+        try:
+            await asyncio.wait_for(test_connection(), timeout=10.0)
+        except asyncio.TimeoutError:
+            raise HTTPException(
+                status_code=400,
+                detail="Connection timeout. Please check your database is running and accessible."
+            )
         
         # Set the environment variable (in-memory for this session)
         os.environ["DATABASE_URL"] = request.database_url
@@ -62,8 +82,12 @@ async def connect_database(request: ConnectRequest):
         # Reset the database adapter singleton to use the new connection
         import database
         database._adapter = None
+        database._current_database_url = None
         
+        logger.info(f"Database connected successfully: {request.database_url.split('@')[1] if '@' in request.database_url else 'connected'}")
         return {"status": "connected", "message": "Database connected successfully"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Database connection error: {str(e)}", exc_info=True)
         raise HTTPException(

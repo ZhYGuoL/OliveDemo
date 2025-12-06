@@ -57,7 +57,8 @@ class PostgreSQLAdapter(DatabaseAdapter):
         self.database_url = database_url
     
     def connect(self):
-        return psycopg2.connect(self.database_url)
+        # Add connection timeout to prevent hanging
+        return psycopg2.connect(self.database_url, connect_timeout=5)
     
     def get_schema_ddl(self) -> str:
         """Introspect PostgreSQL schema."""
@@ -114,7 +115,8 @@ class PostgreSQLAdapter(DatabaseAdapter):
             pk_cols = [row[0] for row in cursor.fetchall()]
             
             if pk_cols:
-                col_defs.append(f'    PRIMARY KEY ({", ".join([f\'"{c}"\' for c in pk_cols])})')
+                pk_str = ", ".join([f'"{c}"' for c in pk_cols])
+                col_defs.append(f'    PRIMARY KEY ({pk_str})')
             
             ddl = f'CREATE TABLE "{table_name}" (\n' + ",\n".join(col_defs) + "\n);"
             ddl_parts.append(ddl)
