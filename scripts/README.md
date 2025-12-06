@@ -21,13 +21,9 @@ Or manually:
 docker-compose up -d
 ```
 
-### 3. Load Data into PostgreSQL
+### 3. Connect Your Database
 
-To load data, you'll need to:
-1. Set up your database connection
-2. Use your own data loading scripts or connect an existing database
-
-**Note:** Data loading scripts are not included in this repository.
+Use the connection string below in the app's connection form to connect your PostgreSQL database.
 
 ## Connection String
 
