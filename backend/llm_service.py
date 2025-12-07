@@ -41,9 +41,20 @@ TECHNICAL RULES:
 - The component should accept props as a destructured object: { data }
 - Do NOT use TypeScript type annotations (no : type syntax)
 - Do NOT use 'export' keyword - just define the function directly: function Dashboard({ data }) { ... }
-- Import Recharts components using require() syntax: const { BarChart, ... } = require('recharts');
-- Make sure require() statements are complete with closing parenthesis and semicolon: require('recharts');
+- React hooks (useState, useEffect, useRef, useMemo, useCallback) are available - you can use them directly without importing
+- Do NOT import React hooks - they are already available in scope
+- Do NOT use require() for Recharts - Recharts components are already available in scope (BarChart, LineChart, PieChart, AreaChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Bar, Line, Pie, Cell, Area, ResponsiveContainer)
 - Use ResponsiveContainer to make charts responsive
+- Make sure all functions are complete and all variables are defined before use
+- If you use useState for date filtering, the component will automatically re-render when state changes
+- Do NOT call undefined functions - if you reference a function, make sure it's defined
+- Complete all function definitions - do not leave functions incomplete
+- The component MUST return valid JSX - do not return null, undefined, or empty fragments
+- Always return a div or other container element with visible content
+- If using date filters, return the filter controls AND the chart in the same return statement
+- If filtered data is empty, still return JSX showing a message like "No data available" or show all data
+- NEVER return null or undefined - always return JSX with at least a container div
+- When using conditional rendering, ensure there's always a fallback that returns JSX (not null)
 - Return ONLY valid JSON, no markdown code blocks, no backticks, no commentary
 - The JSON must be valid and parseable - no control characters, no unescaped newlines in strings
 - Escape all special characters properly in the reactComponent string (use \\n for newlines, \\" for quotes)
@@ -93,9 +104,13 @@ CRITICAL JSON FORMATTING REQUIREMENTS:
 4. All quotes inside strings must be escaped as \\"
 5. Do not include any markdown formatting, code blocks, or backticks
 6. Return pure, valid JSON only
+7. Start your response with {{ and end with }} - no text before or after
+8. Property names must be in double quotes: "sql" and "reactComponent" (not sql or reactComponent)
 
-Example of correct format:
-{{"sql": "SELECT ...", "reactComponent": "function Dashboard({{ data }}) {{ return <div>...</div>; }}"}}"""
+Example of correct format (this is EXACTLY what you should return):
+{{"sql": "SELECT category, SUM(amount) as total FROM expenses GROUP BY category", "reactComponent": "function Dashboard({{ data }}) {{ return <div>...</div>; }}"}}
+
+DO NOT include any explanation, commentary, or markdown. Return ONLY the JSON object."""
 
     try:
         response = httpx.post(
@@ -133,8 +148,8 @@ def parse_llm_response(response_text: str) -> Dict[str, str]:
     """
     import re
     
-    # Log the raw response for debugging (first 500 chars)
-    logger.debug(f"LLM raw response (first 500 chars): {response_text[:500]}")
+    # Log the raw response for debugging (first 1000 chars)
+    logger.info(f"LLM raw response (first 1000 chars): {response_text[:1000]}")
     
     try:
         # Try to find JSON object between first { and last }
@@ -142,12 +157,13 @@ def parse_llm_response(response_text: str) -> Dict[str, str]:
         end_idx = response_text.rfind("}")
         
         if start_idx == -1 or end_idx == -1:
+            logger.error(f"No JSON object found. Response: {response_text[:500]}")
             raise ValueError("No JSON object found in response")
         
         json_str = response_text[start_idx:end_idx + 1]
         
         # Log the extracted JSON string for debugging
-        logger.debug(f"Extracted JSON string (first 200 chars): {json_str[:200]}")
+        logger.info(f"Extracted JSON string (first 500 chars): {json_str[:500]}")
         
         # Clean up common JSON issues:
         # 1. Remove invalid control characters
@@ -179,30 +195,55 @@ def parse_llm_response(response_text: str) -> Dict[str, str]:
             parsed = json.loads(json_str)
         except json.JSONDecodeError as e:
             parse_error = e
-            logger.debug(f"First parse attempt failed: {str(e)}")
+            logger.info(f"First parse attempt failed: {str(e)}")
+            logger.info(f"JSON string causing error (first 200 chars): {json_str[:200]}")
             
             # Apply more aggressive fixes only if initial parse fails
             json_str_fixed = json_str
             
-            # Fix unquoted property names: {key: -> {"key":
-            # Only target keys at start of line or after comma to avoid matching inside strings
-            json_str_fixed = re.sub(r'^\s*\{(\w+):', r'{"\1":', json_str_fixed, flags=re.MULTILINE)
+            # Fix unquoted property names - handle multiple patterns
+            # Pattern 1: {key: -> {"key": (at start of object)
+            json_str_fixed = re.sub(r'\{(\w+):', r'{"\1":', json_str_fixed)
+            
+            # Pattern 2: , key: -> , "key": (after comma)
             json_str_fixed = re.sub(r',\s*(\w+):', r', "\1":', json_str_fixed)
             
-            # Fix single quotes around property names: 'key': -> "key":
+            # Pattern 3: 'key': -> "key": (single quotes around property name)
             json_str_fixed = re.sub(r"'(\w+)'\s*:", r'"\1":', json_str_fixed)
+            
+            # Pattern 4: key: -> "key": (standalone, but be careful not to match inside strings)
+            # Only match if it's at the start of a line or after { or ,
+            json_str_fixed = re.sub(r'(?<=[{,\s])(\w+):', r'"\1":', json_str_fixed)
+            
+            logger.info(f"After aggressive fixes (first 500 chars): {json_str_fixed[:500]}")
             
             try:
                 parsed = json.loads(json_str_fixed)
-            except json.JSONDecodeError:
-                # More aggressive: replace all single quotes with double quotes
-                # This is a last resort
+            except json.JSONDecodeError as e2:
+                logger.info(f"Second parse attempt also failed: {str(e2)}")
+                logger.info(f"Fixed JSON string (first 500 chars): {json_str_fixed[:500]}")
+                
+                # Try fixing common property names directly
+                json_str_direct = json_str_fixed
+                # Fix common property names that LLM might forget to quote
+                json_str_direct = re.sub(r'\bsql\s*:', r'"sql":', json_str_direct)
+                json_str_direct = re.sub(r'\breactComponent\s*:', r'"reactComponent":', json_str_direct)
+                
                 try:
-                    json_str_aggressive = json_str.replace("'", '"')
-                    # But we need to be careful - fix any double-double quotes
-                    json_str_aggressive = json_str_aggressive.replace('""', '"')
-                    parsed = json.loads(json_str_aggressive)
+                    parsed = json.loads(json_str_direct)
+                    logger.info("Successfully parsed after direct property name fixes")
                 except json.JSONDecodeError:
+                    # More aggressive: replace all single quotes with double quotes
+                    # This is a last resort
+                    try:
+                        json_str_aggressive = json_str.replace("'", '"')
+                        # But we need to be careful - fix any double-double quotes
+                        json_str_aggressive = json_str_aggressive.replace('""', '"')
+                        # Also fix unquoted property names one more time
+                        json_str_aggressive = re.sub(r'\{(\w+):', r'{"\1":', json_str_aggressive)
+                        json_str_aggressive = re.sub(r',\s*(\w+):', r', "\1":', json_str_aggressive)
+                        parsed = json.loads(json_str_aggressive)
+                    except json.JSONDecodeError:
                     # Last resort: try to extract JSON more carefully with regex
                     json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', json_str, re.DOTALL)
                     if json_match:
@@ -230,11 +271,17 @@ def parse_llm_response(response_text: str) -> Dict[str, str]:
         }
     except json.JSONDecodeError as e:
         logger.error(f"JSON decode error: {str(e)}")
-        logger.error(f"Failed JSON string: {json_str}") # Log the full failed string
+        logger.error(f"Failed JSON string (first 1000 chars): {json_str[:1000]}")
+        logger.error(f"Error position: line {e.lineno}, column {e.colno}")
+        # Show context around the error
+        if e.pos and e.pos < len(json_str):
+            start = max(0, e.pos - 50)
+            end = min(len(json_str), e.pos + 50)
+            logger.error(f"Context around error: ...{json_str[start:end]}...")
         raise ValueError(f"Invalid JSON in LLM response: {str(e)}")
     except Exception as e:
         logger.error(f"Parse error: {str(e)}")
-        logger.error(f"Response text: {response_text[:1000]}")
+        logger.error(f"Response text (first 1000 chars): {response_text[:1000]}")
         raise ValueError(f"Failed to parse LLM response: {str(e)}")
 
 def generate_dashboard(user_prompt: str, db_schema_ddl: str) -> Dict[str, Any]:

@@ -51,29 +51,41 @@ async def connect_database(request: ConnectRequest):
         # Validate the connection string by trying to create an adapter
         from database_adapters import get_database_adapter
         import asyncio
+        import concurrent.futures
         
         # Run connection test in a thread pool with timeout
-        async def test_connection():
-            loop = asyncio.get_event_loop()
+        def test_connection_sync():
+            """Synchronous connection test function."""
             adapter = get_database_adapter(database_url=request.database_url, db_path=None)
-            # Run blocking connection in thread pool
-            conn = await loop.run_in_executor(None, adapter.connect)
+            conn = adapter.connect()
             try:
                 # Quick test query
                 cursor = conn.cursor()
                 cursor.execute("SELECT 1")
                 cursor.fetchone()
                 cursor.close()
+                return True
             finally:
                 conn.close()
         
-        # Test connection with 10 second timeout
+        # Test connection with 15 second timeout (increased from 10)
         try:
-            await asyncio.wait_for(test_connection(), timeout=10.0)
+            # Run blocking connection test in thread pool
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = loop.run_in_executor(executor, test_connection_sync)
+                await asyncio.wait_for(future, timeout=15.0)
         except asyncio.TimeoutError:
+            logger.error(f"Connection timeout for: {request.database_url.split('@')[1] if '@' in request.database_url else request.database_url}")
             raise HTTPException(
                 status_code=400,
                 detail="Connection timeout. Please check your database is running and accessible."
+            )
+        except Exception as conn_error:
+            logger.error(f"Connection test failed: {str(conn_error)}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to connect to database: {str(conn_error)}"
             )
         
         # Set the environment variable (in-memory for this session)
