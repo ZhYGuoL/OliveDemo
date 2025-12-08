@@ -365,6 +365,13 @@
   gap: 1.25rem;
 }
 
+.content-shell.has-result {
+  max-width: 100%;
+  padding: 0;
+  height: 100vh;
+  gap: 0;
+}
+
 .main-content.sidebar-collapsed {
   margin-left: 70px;
   max-width: calc(100vw - 70px);
@@ -555,6 +562,8 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .dashboard-header-bar {
@@ -917,9 +926,13 @@
 /* Dashboard Container */
 .dashboard-container {
   background-color: #ffffff;
-  padding: 2rem;
+  padding: 0;
   margin: 0;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  height: calc(100vh - 80px); /* Full height minus header */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .dashboard-title {
@@ -931,13 +944,19 @@
 
 .dynamic-dashboard-container {
   width: 100%;
-  min-height: 400px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .dashboard-render-target {
   width: 100%;
-  min-height: 200px;
-  padding: 1rem;
+  height: 100%;
+  flex: 1;
+  padding: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .dashboard-render-target > * {

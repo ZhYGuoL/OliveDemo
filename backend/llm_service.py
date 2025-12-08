@@ -8,7 +8,7 @@ from typing import Dict, Any
 logger = logging.getLogger(__name__)
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
 
 def build_system_prompt() -> str:
     """Build the system prompt for the LLM."""
@@ -20,6 +20,55 @@ Given a database schema and a user prompt, you must respond with a JSON object c
 
 AVAILABLE CHARTING LIBRARY:
 You have access to Recharts library. Import it like: const { BarChart, LineChart, PieChart, AreaChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Bar, Line, Pie, Cell, Area, ResponsiveContainer } = require('recharts');
+
+AVAILABLE DASHBOARD COMPONENTS (PREFERRED - USE THESE FOR CONSISTENT UI):
+You have access to pre-built dashboard components that provide consistent styling and functionality. 
+CRITICAL: These components are already available in scope - DO NOT import them, DO NOT use require(), just use them directly by name:
+
+1. FilterSection - Container for filters with consistent styling
+   Usage: <FilterSection title="Filters" description="Adjust filters to refine data">
+     {/* Put filter components here */}
+   </FilterSection>
+
+2. DateRangeFilter - Professional date range picker with start/end dates
+   Props: startDate (string|null), endDate (string|null), onStartDateChange (function), onEndDateChange (function), label (optional string), description (optional string)
+   Usage: <DateRangeFilter 
+     startDate={startDate} 
+     endDate={endDate}
+     onStartDateChange={setStartDate}
+     onEndDateChange={setEndDate}
+     label="Date Range"
+     description="Select start and end dates"
+   />
+
+3. CheckboxFilter - Multi-select checkbox filter with "Select All" option
+   Props: options (array of {value, label, count?}), selectedValues (array of strings), onSelectionChange (function), label (optional string), description (optional string), showSelectAll (optional boolean)
+   Usage: <CheckboxFilter
+     options={[{value: 'A', label: 'Option A', count: 10}, {value: 'B', label: 'Option B', count: 5}]}
+     selectedValues={selectedValues}
+     onSelectionChange={setSelectedValues}
+     label="Venue Types"
+     description="Select venue types to filter"
+     showSelectAll={true}
+   />
+
+4. ChartContainer - Wrapper for charts with title and subtitle
+   Props: title (string), subtitle (optional string), children (ReactNode), height (optional string|number, default fills available space)
+   Usage: <ChartContainer title="Sales Over Time" subtitle="Monthly sales data">
+     <ResponsiveContainer width="100%" height="100%">
+       <LineChart data={data}>
+         {/* Chart components */}
+       </LineChart>
+     </ResponsiveContainer>
+   </ChartContainer>
+   IMPORTANT: ChartContainer defaults to filling available vertical space - use ResponsiveContainer with height="100%" inside it
+
+PREFERRED STRUCTURE:
+- Use FilterSection to wrap all filters
+- Use DateRangeFilter for date filtering (instead of raw <input type="date">)
+- Use CheckboxFilter for multi-select options (instead of raw checkboxes)
+- Use ChartContainer to wrap each chart (instead of plain divs)
+- These components provide consistent styling and better UX
 
 VISUALIZATION RULES:
 - Choose the MOST APPROPRIATE visualization type based on the data and user's intent:
@@ -47,11 +96,20 @@ TECHNICAL RULES:
 - Use ResponsiveContainer to make charts responsive
 - Make sure all functions are complete and all variables are defined before use
 - If you use useState for date filtering, the component will automatically re-render when state changes
+- CRITICAL: When using date filters with useState, initialize dates to null and show ALL data when filters are null
+- Example: const filteredData = startDate && endDate ? data.filter(...) : data;
+- NEVER filter data when date filters are null/undefined - show all data instead
+- DATE FILTERS MUST ALWAYS BE VISIBLE: Always render date filter inputs, even when dates are null
+- PREFER using DateRangeFilter component instead of raw <input type="date"> elements
+- Filter inputs should be placed ABOVE the chart, always visible to the user
+- Do NOT conditionally hide filter inputs - they should always be rendered
+- Wrap filters in FilterSection component for consistent styling
 - Do NOT call undefined functions - if you reference a function, make sure it's defined
 - Complete all function definitions - do not leave functions incomplete
 - The component MUST return valid JSX - do not return null, undefined, or empty fragments
 - Always return a div or other container element with visible content
 - If using date filters, return the filter controls AND the chart in the same return statement
+- Filter controls must be visible at all times, not conditionally hidden
 - If filtered data is empty, still return JSX showing a message like "No data available" or show all data
 - NEVER return null or undefined - always return JSX with at least a container div
 - When using conditional rendering, ensure there's always a fallback that returns JSX (not null)
@@ -61,10 +119,16 @@ TECHNICAL RULES:
 - For JSX style objects, use unquoted keys or single quotes: style={{padding: '20px'}} NOT style={{"padding": ...}}
 - Keep the JSON on a single line or use proper JSON formatting
 
-EXAMPLE STRUCTURE:
+EXAMPLE STRUCTURE (WITH DASHBOARD COMPONENTS - PREFERRED):
+{{
+  "sql": "SELECT transaction_date, SUM(units_sold) as total_units FROM sales GROUP BY transaction_date ORDER BY transaction_date",
+  "reactComponent": "function Dashboard({{ data }}) {{\\n  const [startDate, setStartDate] = useState(null);\\n  const [endDate, setEndDate] = useState(null);\\n  const filteredData = startDate && endDate ? data.filter(item => item.transaction_date >= startDate && item.transaction_date <= endDate) : data;\\n  return (\\n    <div style={{padding: '20px', height: '100%'}}>\\n      <h1 style={{marginBottom: '24px', fontSize: '24px', fontWeight: 600}}>Sales Dashboard</h1>\\n      <FilterSection title=\\"Filters\\" description=\\"Adjust date range to filter the data\\">\\n        <DateRangeFilter\\n          startDate={{startDate}}\\n          endDate={{endDate}}\\n          onStartDateChange={{setStartDate}}\\n          onEndDateChange={{setEndDate}}\\n          label=\\"Date Range\\"\\n        />\\n      </FilterSection>\\n      <ChartContainer title=\\"Sales Over Time\\" subtitle=\\"Total units sold by date\\">\\n        <ResponsiveContainer width=\\"100%\\" height=\\"100%\\">\\n          <LineChart data={{filteredData}}>\\n            <CartesianGrid strokeDasharray=\\"3 3\\" />\\n            <XAxis dataKey=\\"transaction_date\\" />\\n            <YAxis />\\n            <Tooltip />\\n            <Legend />\\n            <Line type=\\"monotone\\" dataKey=\\"total_units\\" stroke=\\"#1a5f3f\\" />\\n          </LineChart>\\n        </ResponsiveContainer>\\n      </ChartContainer>\\n    </div>\\n  );\\n}}"
+}}
+
+SIMPLE EXAMPLE (WITHOUT FILTERS):
 {{
   "sql": "SELECT category, SUM(amount) as total FROM expenses GROUP BY category ORDER BY total DESC",
-  "reactComponent": "function Dashboard({{ data }}) {{\\n  // Recharts components are available in scope: BarChart, Bar, XAxis, YAxis, etc.\\n  return (\\n    <div style={{padding: '20px', height: '100%'}}>\\n      <h2 style={{marginBottom: '20px'}}>Expenses by Category</h2>\\n      <div style={{height: '400px', width: '100%'}}>\\n        <ResponsiveContainer width=\\"100%\\" height=\\"100%\\">\\n          <BarChart data={{data}}>\\n            <CartesianGrid strokeDasharray=\\"3 3\\" />\\n            <XAxis dataKey=\\"category\\" />\\n            <YAxis />\\n            <Tooltip />\\n            <Legend />\\n            <Bar dataKey=\\"total\\" fill=\\"#1a5f3f\\" />\\n          </BarChart>\\n        </ResponsiveContainer>\\n      </div>\\n    </div>\\n  );\\n}}"
+  "reactComponent": "function Dashboard({{ data }}) {{\\n  return (\\n    <div style={{padding: '20px', height: '100%'}}>\\n      <h1 style={{marginBottom: '24px', fontSize: '24px', fontWeight: 600}}>Expenses by Category</h1>\\n      <ChartContainer title=\\"Expenses by Category\\" subtitle=\\"Total expenses grouped by category\\">\\n        <ResponsiveContainer width=\\"100%\\" height=\\"100%\\">\\n          <BarChart data={{data}}>\\n            <CartesianGrid strokeDasharray=\\"3 3\\" />\\n            <XAxis dataKey=\\"category\\" />\\n            <YAxis />\\n            <Tooltip />\\n            <Legend />\\n            <Bar dataKey=\\"total\\" fill=\\"#1a5f3f\\" />\\n          </BarChart>\\n        </ResponsiveContainer>\\n      </ChartContainer>\\n    </div>\\n  );\\n}}"
 }}
 
 IMPORTANT: 
@@ -102,6 +166,14 @@ CRITICAL JSON FORMATTING REQUIREMENTS:
 2. Property names MUST be quoted: "sql" not sql or 'sql'
 3. The reactComponent string must have all newlines escaped as \\n
 4. All quotes inside strings must be escaped as \\"
+
+CRITICAL DATA FIELD NAMING:
+- Use the EXACT column names from your SQL SELECT query in the React component
+- If your SQL uses "AS total_units", use dataKey="total_units" in the chart, NOT the original column name
+- If your SQL uses "AS transaction_date", use dataKey="transaction_date" 
+- ALWAYS match the column aliases from your SQL query exactly
+- Example: SQL "SELECT date, SUM(units) AS total_units" means use dataKey="total_units" NOT "units"
+- Date fields from PostgreSQL may be Date objects - format them as strings if needed: item.date?.toISOString()?.split('T')[0] or String(item.date)
 5. Do not include any markdown formatting, code blocks, or backticks
 6. Return pure, valid JSON only
 7. Start your response with {{ and end with }} - no text before or after
@@ -244,18 +316,18 @@ def parse_llm_response(response_text: str) -> Dict[str, str]:
                         json_str_aggressive = re.sub(r',\s*(\w+):', r', "\1":', json_str_aggressive)
                         parsed = json.loads(json_str_aggressive)
                     except json.JSONDecodeError:
-                    # Last resort: try to extract JSON more carefully with regex
-                    json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', json_str, re.DOTALL)
-                    if json_match:
-                        json_str_extracted = json_match.group(0)
-                        json_str_extracted = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', json_str_extracted)
-                        json_str_extracted = re.sub(r',(\s*[}\]])', r'\1', json_str_extracted)
-                        json_str_extracted = re.sub(r'\{(\w+):', r'{"\1":', json_str_extracted)
-                        json_str_extracted = re.sub(r',\s*(\w+):', r', "\1":', json_str_extracted)
-                        json_str_extracted = re.sub(r"'(\w+)'\s*:", r'"\1":', json_str_extracted)
-                        parsed = json.loads(json_str_extracted)
-                    else:
-                        raise ValueError(f"Could not parse JSON. Original error: {str(parse_error)}. Response preview: {response_text[:200]}")
+                        # Last resort: try to extract JSON more carefully with regex
+                        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', json_str, re.DOTALL)
+                        if json_match:
+                            json_str_extracted = json_match.group(0)
+                            json_str_extracted = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', json_str_extracted)
+                            json_str_extracted = re.sub(r',(\s*[}\]])', r'\1', json_str_extracted)
+                            json_str_extracted = re.sub(r'\{(\w+):', r'{"\1":', json_str_extracted)
+                            json_str_extracted = re.sub(r',\s*(\w+):', r', "\1":', json_str_extracted)
+                            json_str_extracted = re.sub(r"'(\w+)'\s*:", r'"\1":', json_str_extracted)
+                            parsed = json.loads(json_str_extracted)
+                        else:
+                            raise ValueError(f"Could not parse JSON. Original error: {str(parse_error)}. Response preview: {response_text[:200]}")
         
         # Validate required keys
         if "sql" not in parsed or "reactComponent" not in parsed:

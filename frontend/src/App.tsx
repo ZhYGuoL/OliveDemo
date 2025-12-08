@@ -304,7 +304,7 @@ function App() {
       )}
 
       <main className={`main-content ${showChat ? 'with-chat' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        <div className="content-shell">
+        <div className={`content-shell ${result ? 'has-result' : ''}`}>
           {!result && (
             <>
               <div className="content-header">

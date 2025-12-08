@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, Component, ErrorInfo, ReactNode } from 're
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import * as Recharts from 'recharts'
+import { DateRangeFilter, CheckboxFilter, ChartContainer, FilterSection } from './dashboard'
 
 interface DynamicDashboardProps {
   componentCode: string
@@ -101,10 +102,102 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
       cleanedCode = cleanedCode.replace(/import\s+{.*?}\s+from\s+['"]react['"];?/g, '')
       cleanedCode = cleanedCode.replace(/const\s+{.*?}\s*=\s*require\(['"]react['"]\);?/g, '')
       
+      // Fix React.useState, React.useEffect, etc. to just useState, useEffect (hooks are provided directly)
+      cleanedCode = cleanedCode.replace(/React\.useState/g, 'useState')
+      cleanedCode = cleanedCode.replace(/React\.useEffect/g, 'useEffect')
+      cleanedCode = cleanedCode.replace(/React\.useRef/g, 'useRef')
+      cleanedCode = cleanedCode.replace(/React\.useMemo/g, 'useMemo')
+      cleanedCode = cleanedCode.replace(/React\.useCallback/g, 'useCallback')
+      
+      // Fix column name mismatches - use actual data keys
+      if (data && data.length > 0) {
+        const actualKeys = Object.keys(data[0])
+        console.log('Fixing column names. Actual keys:', actualKeys)
+        
+        // Common mismatches: units_sold -> total_units, etc.
+        actualKeys.forEach(actualKey => {
+          // If component uses a similar but wrong key, replace it
+          // Pattern: dataKey="units_sold" when actual key is "total_units"
+          if (actualKey.includes('total') || actualKey.includes('sum')) {
+            // Replace common wrong patterns
+            cleanedCode = cleanedCode.replace(
+              new RegExp(`dataKey=["']units_sold["']`, 'g'),
+              `dataKey="${actualKey}"`
+            )
+            cleanedCode = cleanedCode.replace(
+              new RegExp(`dataKey=["']units["']`, 'g'),
+              `dataKey="${actualKey}"`
+            )
+          }
+          
+          // Fix date field references
+          if (actualKey.includes('date') || actualKey.includes('Date')) {
+            cleanedCode = cleanedCode.replace(
+              new RegExp(`dataKey=["']transaction_date["']`, 'g'),
+              `dataKey="${actualKey}"`
+            )
+            cleanedCode = cleanedCode.replace(
+              new RegExp(`item\\.transaction_date`, 'g'),
+              `item.${actualKey}`
+            )
+          }
+        })
+      }
+      
+      // Ensure date filter inputs are always visible (not conditionally hidden)
+      // Fix patterns where filters might be conditionally rendered and hidden
+      // Pattern: {condition ? <div>filters</div> : <div>filters</div>} -> always show filters
+      cleanedCode = cleanedCode.replace(
+        /\{startDate\s*&&\s*endDate\s*\?\s*\([^)]*<div[^>]*>.*?Filter.*?<\/div>[^)]*\)\s*:\s*\([^)]*<div[^>]*>.*?Filter.*?<\/div>[^)]*\)\}/gs,
+        (match) => {
+          // Extract the filter div content (use the first one since both are the same)
+          const filterMatch = match.match(/<div[^>]*>(.*?Filter.*?<\/div>)/s);
+          if (filterMatch) {
+            return filterMatch[0].replace(/^\(|\)$/g, ''); // Remove conditional wrapper
+          }
+          return match;
+        }
+      );
+      
       // Fix incomplete function calls (like updateGraph() without definition)
       // This is a heuristic - if a function is called but not defined, remove the call
       // But we'll let it through and let React handle the error for now
 
+      // Fix common date filter issue: when startDate/endDate are null, show all data
+      // Pattern: data.filter(item => item.date >= startDate && item.date <= endDate)
+      // Should be: (startDate && endDate) ? data.filter(...) : data
+      cleanedCode = cleanedCode.replace(
+        /const\s+filteredData\s*=\s*data\.filter\(([^)]+startDate[^)]+endDate[^)]+)\)/g,
+        (_match, filterBody) => {
+          return `const filteredData = (startDate && endDate) ? data.filter(${filterBody}) : data`;
+        }
+      );
+      
+      // Also handle simpler patterns: filteredData = data.filter(item => item.date >= startDate && item.date <= endDate)
+      cleanedCode = cleanedCode.replace(
+        /(\w+)\s*=\s*data\.filter\(item\s*=>\s*item\.(\w+)\s*>=\s*(\w+)\s*&&\s*item\.\w+\s*<=\s*(\w+)\)/g,
+        (_match, varName, dateField, startVar, endVar) => {
+          return `${varName} = (${startVar} && ${endVar}) ? data.filter(item => item.${dateField} >= ${startVar} && item.${dateField} <= ${endVar}) : data`;
+        }
+      );
+      
+      // More general pattern: any filter with startDate/endDate that doesn't check for null
+      if (cleanedCode.includes('filteredData') && cleanedCode.includes('startDate') && cleanedCode.includes('endDate')) {
+        // Check if it already has the null check
+        if (!cleanedCode.includes('startDate && endDate')) {
+          // Try to fix: filteredData = data.filter(...) -> filteredData = (startDate && endDate) ? data.filter(...) : data
+          cleanedCode = cleanedCode.replace(
+            /(const\s+filteredData\s*=\s*)data\.filter\(([^)]+)\)/g,
+            (_match, prefix, filterBody) => {
+              if (filterBody.includes('startDate') || filterBody.includes('endDate')) {
+                return `${prefix}(startDate && endDate) ? data.filter(${filterBody}) : data`;
+              }
+              return _match;
+            }
+          );
+        }
+      }
+      
       console.log('Cleaned Code Preview:', cleanedCode.substring(0, 1000))
       
       // Check if component has a return statement
@@ -117,9 +210,9 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
         console.warn('⚠️ Component code contains "return null" or "return undefined" - this will cause empty render')
       }
 
-      // Wrap code to create a component factory with Recharts components and React hooks in scope
+      // Wrap code to create a component factory with Recharts components, React hooks, and dashboard components in scope
       const wrappedCode = `
-        (function(React, Recharts) {
+        (function(React, Recharts, DashboardComponents) {
           // Make React hooks available
           const { useState, useEffect, useRef, useMemo, useCallback } = React;
           
@@ -130,6 +223,9 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
             Bar, Line, Pie, Cell, Area, 
             ResponsiveContainer 
           } = Recharts;
+          
+          // Make dashboard components available
+          const { DateRangeFilter, CheckboxFilter, ChartContainer, FilterSection } = DashboardComponents;
           
           // Mock require for any other modules, though we removed recharts require
           const require = (module) => {
@@ -181,11 +277,17 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
         throw new Error(errorMessage)
       }
 
-      // Evaluate the transformed code with React and Recharts
+      // Evaluate the transformed code with React, Recharts, and Dashboard Components
       let Component
       try {
         const componentFactory = eval(transformedCode)
-        Component = componentFactory(React, Recharts)
+        const DashboardComponents = {
+          DateRangeFilter,
+          CheckboxFilter,
+          ChartContainer,
+          FilterSection
+        }
+        Component = componentFactory(React, Recharts, DashboardComponents)
       } catch (evalError: any) {
         console.error('Error evaluating component factory:', evalError)
         console.error('Transformed code preview:', transformedCode.substring(0, 500))
@@ -226,8 +328,40 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
       const handleRenderError = (err: Error, errorInfo: ErrorInfo) => {
         if (!isActive) return
         console.error('Runtime render error:', err)
+        console.error('Error stack:', err.stack)
         console.error('Component stack:', errorInfo.componentStack)
-        setError(`Runtime Error: ${err.message}`)
+        console.error('Error details:', {
+          name: err.name,
+          message: err.message,
+          componentStack: errorInfo.componentStack
+        })
+        setError(`Runtime Error: ${err.message}. Check console for details.`)
+      }
+      
+      // Wrap component render in try-catch to catch synchronous errors
+      const renderWithErrorHandling = () => {
+        try {
+          // Check data structure before rendering
+          if (data && data.length > 0) {
+            const firstRow = data[0]
+            const availableKeys = Object.keys(firstRow)
+            console.log('Available data keys:', availableKeys)
+            console.log('Sample data row:', JSON.stringify(firstRow, null, 2))
+            
+            // Check if dates need formatting
+            availableKeys.forEach(key => {
+              if (key.includes('date') || key.includes('Date')) {
+                const value = firstRow[key]
+                console.log(`Date field "${key}" type:`, typeof value, 'value:', value)
+              }
+            })
+          }
+          
+          return element
+        } catch (err) {
+          console.error('Error in renderWithErrorHandling:', err)
+          throw err
+        }
       }
 
       // Render the component with error handling
@@ -249,8 +383,8 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
       // Wrap component in a container that will show content even if component returns null
       const wrappedElement = React.createElement(
         'div',
-        { style: { width: '100%', height: '100%', minHeight: '400px', padding: '20px' } },
-        element || React.createElement('div', { style: { color: 'red', padding: '20px' } }, 'Component returned null or undefined')
+        { style: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column', padding: '20px', overflow: 'auto' } },
+        renderWithErrorHandling() || React.createElement('div', { style: { color: 'red', padding: '20px' } }, 'Component returned null or undefined')
       )
       
       try {
@@ -279,8 +413,15 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
               hasTextContent,
               textContentLength: container.textContent?.length || 0,
               innerHTMLLength: innerHTML.length,
-              innerHTMLPreview: innerHTML.substring(0, 500)
+              innerHTMLPreview: innerHTML.substring(0, 500),
+              containerHTML: container.innerHTML.substring(0, 1000)
             })
+            
+            // Log what data fields are available
+            if (data && data.length > 0) {
+              console.log('Data fields available:', Object.keys(data[0]))
+              console.log('Sample data row:', data[0])
+            }
             
             if (!hasChildren && !hasTextContent && innerHTML.length < 100) {
               console.warn('Dashboard container appears empty after render')
@@ -391,7 +532,13 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
       <div 
         ref={containerRef} 
         className="dashboard-render-target" 
-        style={{ height: '450px', width: '100%', border: '1px solid #e5e7eb', borderRadius: '8px', backgroundColor: '#fff', overflow: 'hidden' }}
+        style={{ 
+          width: '100%', 
+          height: '100%',
+          flex: 1,
+          backgroundColor: '#F9FAFB',
+          overflow: 'auto'
+        }}
       />
       {!error && renderAttempted && data && data.length > 0 && (
         <div style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#6b7280', padding: '0.5rem' }}>

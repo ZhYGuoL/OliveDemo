@@ -47,34 +47,46 @@ async def connect_database(request: ConnectRequest):
     """
     Connect to a database by setting the DATABASE_URL.
     """
+    logger.info(f"Connection request received for: {request.database_url.split('@')[1] if '@' in request.database_url else 'database'}")
+    
     try:
         # Validate the connection string by trying to create an adapter
         from database_adapters import get_database_adapter
         import asyncio
         import concurrent.futures
         
-        # Run connection test in a thread pool with timeout
+        # Test connection synchronously in a thread pool
         def test_connection_sync():
             """Synchronous connection test function."""
-            adapter = get_database_adapter(database_url=request.database_url, db_path=None)
-            conn = adapter.connect()
+            logger.info("Starting connection test...")
             try:
-                # Quick test query
-                cursor = conn.cursor()
-                cursor.execute("SELECT 1")
-                cursor.fetchone()
-                cursor.close()
-                return True
-            finally:
-                conn.close()
+                adapter = get_database_adapter(database_url=request.database_url, db_path=None)
+                logger.info("Adapter created, attempting connection...")
+                conn = adapter.connect()  # This already has connect_timeout=5
+                logger.info("Connection established, testing query...")
+                try:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT 1")
+                    cursor.fetchone()
+                    cursor.close()
+                    logger.info("Connection test successful")
+                finally:
+                    conn.close()
+            except Exception as e:
+                logger.error(f"Error in connection test: {str(e)}")
+                raise
         
-        # Test connection with 15 second timeout (increased from 10)
+        # Run connection test in thread pool with timeout
+        logger.info("Running connection test in thread pool...")
+        loop = asyncio.get_running_loop()
+        
         try:
-            # Run blocking connection test in thread pool
-            loop = asyncio.get_event_loop()
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                logger.info("Executor created, submitting task...")
                 future = loop.run_in_executor(executor, test_connection_sync)
+                logger.info("Task submitted, waiting for result with 15s timeout...")
                 await asyncio.wait_for(future, timeout=15.0)
+            logger.info("Connection test passed")
         except asyncio.TimeoutError:
             logger.error(f"Connection timeout for: {request.database_url.split('@')[1] if '@' in request.database_url else request.database_url}")
             raise HTTPException(
@@ -82,7 +94,7 @@ async def connect_database(request: ConnectRequest):
                 detail="Connection timeout. Please check your database is running and accessible."
             )
         except Exception as conn_error:
-            logger.error(f"Connection test failed: {str(conn_error)}")
+            logger.error(f"Connection test failed: {str(conn_error)}", exc_info=True)
             raise HTTPException(
                 status_code=400,
                 detail=f"Failed to connect to database: {str(conn_error)}"
