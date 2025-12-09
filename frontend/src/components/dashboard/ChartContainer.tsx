@@ -38,13 +38,14 @@ export function ChartContainer({
         height: typeof height === 'number' ? `${height}px` : height,
         width: '100%',
         flex: 1,
-        minHeight: 0,
+        minHeight: '400px',
         padding: '16px',
         backgroundColor: '#FFFFFF',
         border: '1px solid #E5E7EB',
         borderRadius: '8px',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        position: 'relative'
       }}>
         {children}
       </div>

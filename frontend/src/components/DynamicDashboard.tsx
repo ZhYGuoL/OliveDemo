@@ -41,6 +41,9 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
   useEffect(() => {
     if (!componentCode || !data || !containerRef.current) return
 
+    // Start performance timing
+    const renderStartTime = performance.now()
+
     // Reset error state
     setError(null)
     setRenderAttempted(false)
@@ -54,6 +57,10 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
       
       // Clean up the component code
       let cleanedCode = componentCode.trim()
+      
+      // Fix malformed return statements: return (> -> return (
+      cleanedCode = cleanedCode.replace(/return\s*\(\s*>/g, 'return (')
+      cleanedCode = cleanedCode.replace(/return\s*>/g, 'return (')
       
       // Remove export default (must be removed before named exports)
       cleanedCode = cleanedCode.replace(/^export\s+default\s+/gm, '')
@@ -143,6 +150,15 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
           }
         })
       }
+      
+      // Fix double curly braces in data prop: data={{filteredData}} -> data={filteredData}
+      // This is a common LLM mistake - double braces create an object literal instead of passing the variable
+      // Match: data={{filteredData}} or data={{data}} etc.
+      cleanedCode = cleanedCode.replace(/data=\{\{([a-zA-Z_$][a-zA-Z0-9_$]*)\}\}/g, 'data={$1}')
+      // Also fix other common double brace patterns in chart components
+      cleanedCode = cleanedCode.replace(/(LineChart|BarChart|PieChart|AreaChart)\s+data=\{\{([a-zA-Z_$][a-zA-Z0-9_$]*)\}\}/g, '$1 data={$2}')
+      // Fix any prop={{variable}} pattern where variable is a simple identifier (not an object literal)
+      cleanedCode = cleanedCode.replace(/(\w+)=\{\{([a-zA-Z_$][a-zA-Z0-9_$]*)\}\}/g, '$1={$2}')
       
       // Ensure date filter inputs are always visible (not conditionally hidden)
       // Fix patterns where filters might be conditionally rendered and hidden
@@ -315,6 +331,29 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
       let timeoutId: ReturnType<typeof setTimeout> | null = null
       let rafId: number | null = null
       
+      // Transform data to ensure numeric fields are numbers (Recharts needs numbers)
+      // This must be done BEFORE any use of transformedData
+      const transformedData = data && data.length > 0 ? data.map((row: any) => {
+        const transformed: any = {}
+        Object.keys(row).forEach(key => {
+          const value = row[key]
+          // Convert numeric strings to numbers
+          if (typeof value === 'string' && value !== '' && !isNaN(Number(value)) && !isNaN(parseFloat(value))) {
+            // Check if it's a date string first (YYYY-MM-DD format)
+            if (!/^\d{4}-\d{2}-\d{2}/.test(value)) {
+              transformed[key] = parseFloat(value)
+            } else {
+              transformed[key] = value
+            }
+          } else {
+            transformed[key] = value
+          }
+        })
+        return transformed
+      }) : data
+      
+      console.log('Transformed data sample:', transformedData?.[0])
+      
       // Get or create root (reuse existing root to avoid unmount issues)
       let root = rootRef.current
       if (!root) {
@@ -322,7 +361,7 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
         rootRef.current = root
       }
       
-      console.log('Rendering component with data:', data?.length || 0, 'rows')
+      console.log('Rendering component with data:', transformedData?.length || 0, 'rows')
       
       // Render with error boundary
       const handleRenderError = (err: Error, errorInfo: ErrorInfo) => {
@@ -342,8 +381,8 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
       const renderWithErrorHandling = () => {
         try {
           // Check data structure before rendering
-          if (data && data.length > 0) {
-            const firstRow = data[0]
+          if (transformedData && transformedData.length > 0) {
+            const firstRow = transformedData[0]
             const availableKeys = Object.keys(firstRow)
             console.log('Available data keys:', availableKeys)
             console.log('Sample data row:', JSON.stringify(firstRow, null, 2))
@@ -353,6 +392,11 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
               if (key.includes('date') || key.includes('Date')) {
                 const value = firstRow[key]
                 console.log(`Date field "${key}" type:`, typeof value, 'value:', value)
+              }
+              // Check numeric fields
+              if (key.includes('total') || key.includes('sum') || key.includes('count') || key.includes('units')) {
+                const value = firstRow[key]
+                console.log(`Numeric field "${key}" type:`, typeof value, 'value:', value)
               }
             })
           }
@@ -367,7 +411,7 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
       // Render the component with error handling
       let element
       try {
-        element = React.createElement(Component, { data })
+        element = React.createElement(Component, { data: transformedData })
         console.log('Created React element:', element)
         console.log('Element type:', element?.type?.name || element?.type)
         console.log('Element props keys:', element?.props ? Object.keys(element.props) : 'no props')
@@ -381,11 +425,15 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
       }
       
       // Wrap component in a container that will show content even if component returns null
+      const elementToRender = renderWithErrorHandling()
       const wrappedElement = React.createElement(
         'div',
         { style: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column', padding: '20px', overflow: 'auto' } },
-        renderWithErrorHandling() || React.createElement('div', { style: { color: 'red', padding: '20px' } }, 'Component returned null or undefined')
+        elementToRender || React.createElement('div', { style: { color: 'red', padding: '20px' } }, 'Component returned null or undefined')
       )
+      
+      console.log('Element to render:', elementToRender)
+      console.log('Wrapped element:', wrappedElement)
       
       try {
         root.render(
@@ -402,6 +450,9 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
           timeoutId = setTimeout(() => {
             if (!isActive || !containerRef.current || !rootRef.current) return
             
+            const renderEndTime = performance.now()
+            const renderDuration = renderEndTime - renderStartTime
+            
             const container = containerRef.current
             const hasChildren = container.children.length > 0
             const hasTextContent = container.textContent && container.textContent.trim().length > 0
@@ -416,11 +467,17 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
               innerHTMLPreview: innerHTML.substring(0, 500),
               containerHTML: container.innerHTML.substring(0, 1000)
             })
+            console.log(`⏱️ Dashboard render time: ${renderDuration.toFixed(2)}ms`)
             
             // Log what data fields are available
-            if (data && data.length > 0) {
-              console.log('Data fields available:', Object.keys(data[0]))
-              console.log('Sample data row:', data[0])
+            if (transformedData && transformedData.length > 0) {
+              console.log('Data fields available:', Object.keys(transformedData[0]))
+              console.log('Sample data row:', transformedData[0])
+              console.log('Data types:', Object.keys(transformedData[0]).map(key => ({
+                key,
+                type: typeof transformedData[0][key],
+                value: transformedData[0][key]
+              })))
             }
             
             if (!hasChildren && !hasTextContent && innerHTML.length < 100) {

@@ -43,15 +43,15 @@ def init_database():
             )
         """)
     elif db_type == "mysql":
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS expenses (
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS expenses (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 date DATE NOT NULL,
                 category VARCHAR(100) NOT NULL,
                 amount DECIMAL(10, 2) NOT NULL,
-                description TEXT
-            )
-        """)
+            description TEXT
+        )
+    """)
     
     # Clear existing data
     cursor.execute("DELETE FROM expenses")
