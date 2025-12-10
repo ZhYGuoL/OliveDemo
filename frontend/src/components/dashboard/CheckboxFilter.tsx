@@ -1,6 +1,5 @@
-import React, { useRef, useEffect } from 'react'
+import { useRef, useEffect } from 'react'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
 
 interface CheckboxOption {
   value: string

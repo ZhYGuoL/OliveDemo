@@ -211,23 +211,32 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
       // More general pattern: any filter with startDate/endDate that doesn't check for null
       if (cleanedCode.includes('filteredData') && cleanedCode.includes('startDate') && cleanedCode.includes('endDate')) {
         // Check if it already has the null check
-        if (!cleanedCode.includes('startDate && endDate')) {
-          // Try to fix: filteredData = data.filter(...) -> filteredData = (startDate && endDate) ? data.filter(...) : data
-          cleanedCode = cleanedCode.replace(
-            /(const\s+filteredData\s*=\s*)data\.filter\(([^)]+)\)/g,
-            (_match, prefix, filterBody) => {
-              if (filterBody.includes('startDate') || filterBody.includes('endDate')) {
-                return `${prefix}(startDate && endDate) ? data.filter(${filterBody}) : data`;
-              }
-              return _match;
+        if (!cleanedCode.includes('startDate && endDate') && !cleanedCode.includes('startDate || !endDate')) {
+           // Replace the whole line defining filteredData
+           cleanedCode = cleanedCode.replace(
+            /(const|let|var)\s+filteredData\s*=\s*[^;]+;/g,
+            (match) => {
+               if (match.includes('filter') && (match.includes('startDate') || match.includes('endDate'))) {
+                  // Keep the original filter logic but wrap it
+                  const originalAssignment = match.replace(/(const|let|var)\s+filteredData\s*=\s*/, '').replace(/;$/, '');
+                  return `const filteredData = (startDate && endDate) ? ${originalAssignment} : data;`;
+               }
+               return match;
             }
-          );
+           );
         }
       }
       
       // Final aggressive fix for double braces - do this right before logging
       // Replace any pattern like data={{variable}} regardless of whitespace
       cleanedCode = cleanedCode.replace(/data\s*=\s*\{\{\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\}\}/g, 'data={$1}')
+      
+      // Check if component returns null or undefined and force it to return something visible
+      // This regex matches "return null;" or "return undefined;"
+      cleanedCode = cleanedCode.replace(/return\s+(null|undefined)\s*;?/g, "return <div className='p-4 text-red-500'>Component returned null - check logic</div>;")
+
+      // Check if component renders an empty fragment <></> or <Fragment></Fragment>
+      // This is harder to catch with regex, but we can try to catch simple cases
       
       console.log('Cleaned Code Preview:', cleanedCode.substring(0, 1000))
       
@@ -439,11 +448,12 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
       }
 
       // Render the component with error handling
-      let element
+      let element: ReactNode = null
       try {
         element = React.createElement(Component, { data: transformedData })
         console.log('Created React element:', element)
-        console.log('Element type:', element?.type?.name || element?.type)
+        const elementType = element && typeof element === 'object' && 'type' in element ? (element.type as any).name || element.type : typeof element
+        console.log('Element type:', elementType)
         console.log('Element props keys:', element?.props ? Object.keys(element.props) : 'no props')
         console.log('Element props data length:', element?.props?.data?.length || 0)
         
