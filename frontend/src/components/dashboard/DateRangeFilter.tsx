@@ -1,4 +1,6 @@
 import React from 'react'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 interface DateRangeFilterProps {
   startDate: string | null
@@ -18,52 +20,34 @@ export function DateRangeFilter({
   description
 }: DateRangeFilterProps) {
   return (
-    <div style={{ marginBottom: '24px' }}>
-      <h3 style={{ marginBottom: '8px', fontSize: '14px', fontWeight: 600, color: '#374151' }}>
+    <div className="mb-6">
+      <h3 className="mb-2 text-sm font-semibold text-gray-700">
         {label}
       </h3>
       {description && (
-        <p style={{ marginBottom: '12px', fontSize: '12px', color: '#6B7280' }}>
+        <p className="mb-3 text-xs text-gray-500">
           {description}
         </p>
       )}
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-        <div style={{ flex: '1', minWidth: '200px' }}>
-          <label style={{ display: 'block', marginBottom: '4px', fontSize: '12px', fontWeight: 500, color: '#374151' }}>
-            Start Date
-          </label>
-          <input
+      <div className="flex gap-3 flex-wrap">
+        <div className="flex-1 min-w-[200px] space-y-2">
+          <Label htmlFor="start-date">Start Date</Label>
+          <Input
+            id="start-date"
             type="date"
             value={startDate || ''}
             onChange={(e) => onStartDateChange(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              border: '1px solid #D1D5DB',
-              borderRadius: '6px',
-              fontSize: '14px',
-              color: '#111827',
-              backgroundColor: '#FFFFFF'
-            }}
+            className="w-full"
           />
         </div>
-        <div style={{ flex: '1', minWidth: '200px' }}>
-          <label style={{ display: 'block', marginBottom: '4px', fontSize: '12px', fontWeight: 500, color: '#374151' }}>
-            End Date
-          </label>
-          <input
+        <div className="flex-1 min-w-[200px] space-y-2">
+          <Label htmlFor="end-date">End Date</Label>
+          <Input
+            id="end-date"
             type="date"
             value={endDate || ''}
             onChange={(e) => onEndDateChange(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              border: '1px solid #D1D5DB',
-              borderRadius: '6px',
-              fontSize: '14px',
-              color: '#111827',
-              backgroundColor: '#FFFFFF'
-            }}
+            className="w-full"
           />
         </div>
       </div>

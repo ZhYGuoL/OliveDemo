@@ -1,13 +1,24 @@
 import { useState } from 'react'
-import './ConnectionForm.css'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
 
 interface ConnectionFormProps {
   type: 'postgresql' | 'supabase' | 'mysql'
+  isOpen: boolean
   onConnect: (connectionString: string) => Promise<void>
   onCancel: () => void
 }
 
-export function ConnectionForm({ type, onConnect, onCancel }: ConnectionFormProps) {
+export function ConnectionForm({ type, isOpen, onConnect, onCancel }: ConnectionFormProps) {
   const [connectionString, setConnectionString] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -60,20 +71,22 @@ export function ConnectionForm({ type, onConnect, onCancel }: ConnectionFormProp
   }
 
   return (
-    <div className="connection-form-overlay" onClick={onCancel}>
-      <div className="connection-form-content" onClick={(e) => e.stopPropagation()}>
-        <div className="connection-form-header">
-          <div className="connection-form-title-group">
-            <div className="connection-form-icon">{getIcon()}</div>
-            <h2>{getTitle()}</h2>
-          </div>
-          <button className="connection-form-close" onClick={onCancel}>×</button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={onCancel}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="text-2xl">{getIcon()}</span>
+            {getTitle()}
+          </DialogTitle>
+          <DialogDescription>
+            Enter your database connection string to connect securely.
+          </DialogDescription>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="connection-form">
-          <div className="form-group">
-            <label htmlFor="connectionString">Connection String</label>
-            <input
+        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+          <div className="space-y-2">
+            <Label htmlFor="connectionString">Connection String</Label>
+            <Input
               id="connectionString"
               type="text"
               value={connectionString}
@@ -81,36 +94,35 @@ export function ConnectionForm({ type, onConnect, onCancel }: ConnectionFormProp
               placeholder={getPlaceholder()}
               required
               disabled={loading}
-              className="connection-string-input"
+              className="font-mono text-sm"
             />
           </div>
 
           {error && (
-            <div className="form-error">
+            <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
               {error}
             </div>
           )}
 
-          <div className="form-actions">
-            <button
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
               type="button"
+              variant="outline"
               onClick={onCancel}
-              className="form-button back"
               disabled={loading}
             >
               Back
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              className="form-button connect"
               disabled={loading || !connectionString.trim()}
             >
               {loading ? 'Connecting...' : 'Connect Database'}
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

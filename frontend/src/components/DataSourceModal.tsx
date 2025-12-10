@@ -1,4 +1,11 @@
-import './DataSourceModal.css'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
 
 interface DataSourceModalProps {
   isOpen: boolean
@@ -7,8 +14,6 @@ interface DataSourceModalProps {
 }
 
 export function DataSourceModal({ isOpen, onClose, onSelect }: DataSourceModalProps) {
-  if (!isOpen) return null
-
   const dataSources = [
     {
       type: 'postgresql' as const,
@@ -31,30 +36,40 @@ export function DataSourceModal({ isOpen, onClose, onSelect }: DataSourceModalPr
   ]
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Connect your first data source</h2>
-          <button className="modal-close" onClick={onClose}>×</button>
-        </div>
-        <p className="modal-description">
-          Choose a database to connect. We will securely access your data to help you build powerful tools.
-        </p>
-        <div className="data-source-grid">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[800px]">
+        <DialogHeader>
+          <DialogTitle>Connect your first data source</DialogTitle>
+          <DialogDescription>
+            Choose a database to connect. We will securely access your data to help you build powerful tools.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-4 mt-4">
           {dataSources.map((source) => (
             <div
               key={source.type}
-              className="data-source-card-modal"
-              onClick={() => onSelect(source.type)}
+              className={cn(
+                "p-6 border-2 rounded-lg cursor-pointer transition-all",
+                "hover:border-primary hover:shadow-md",
+                "bg-white border-gray-200"
+              )}
+              onClick={() => {
+                onSelect(source.type)
+                onClose()
+              }}
             >
-              <div className="data-source-icon-modal">{source.icon}</div>
-              <h3>{source.title}</h3>
-              <p>{source.description}</p>
+              <div className="text-4xl mb-2">{source.icon}</div>
+              <h3 className="text-base font-semibold text-gray-900 mb-1">
+                {source.title}
+              </h3>
+              <p className="text-sm text-gray-600">
+                {source.description}
+              </p>
             </div>
           ))}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

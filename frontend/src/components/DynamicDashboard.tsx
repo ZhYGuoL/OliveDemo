@@ -153,12 +153,23 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
       
       // Fix double curly braces in data prop: data={{filteredData}} -> data={filteredData}
       // This is a common LLM mistake - double braces create an object literal instead of passing the variable
-      // Match: data={{filteredData}} or data={{data}} etc.
+      // Match: data={{filteredData}} or data={{data}} etc. (with optional whitespace)
+      // Try multiple patterns to catch all variations
+      cleanedCode = cleanedCode.replace(/data\s*=\s*\{\{\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\}\}/g, 'data={$1}')
       cleanedCode = cleanedCode.replace(/data=\{\{([a-zA-Z_$][a-zA-Z0-9_$]*)\}\}/g, 'data={$1}')
       // Also fix other common double brace patterns in chart components
+      cleanedCode = cleanedCode.replace(/(LineChart|BarChart|PieChart|AreaChart)\s+data\s*=\s*\{\{\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\}\}/g, '$1 data={$2}')
       cleanedCode = cleanedCode.replace(/(LineChart|BarChart|PieChart|AreaChart)\s+data=\{\{([a-zA-Z_$][a-zA-Z0-9_$]*)\}\}/g, '$1 data={$2}')
       // Fix any prop={{variable}} pattern where variable is a simple identifier (not an object literal)
+      cleanedCode = cleanedCode.replace(/(\w+)\s*=\s*\{\{\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\}\}/g, '$1={$2}')
       cleanedCode = cleanedCode.replace(/(\w+)=\{\{([a-zA-Z_$][a-zA-Z0-9_$]*)\}\}/g, '$1={$2}')
+      
+      // Log if we found and fixed double braces
+      if (cleanedCode.includes('data={{')) {
+        console.warn('⚠️ Found double braces in data prop - attempting to fix')
+        // Last resort: replace any remaining data={{variable}} patterns
+        cleanedCode = cleanedCode.replace(/data=\{\{([^}]+)\}\}/g, 'data={$1}')
+      }
       
       // Ensure date filter inputs are always visible (not conditionally hidden)
       // Fix patterns where filters might be conditionally rendered and hidden
@@ -214,7 +225,23 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
         }
       }
       
+      // Final aggressive fix for double braces - do this right before logging
+      // Replace any pattern like data={{variable}} regardless of whitespace
+      cleanedCode = cleanedCode.replace(/data\s*=\s*\{\{\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\}\}/g, 'data={$1}')
+      
       console.log('Cleaned Code Preview:', cleanedCode.substring(0, 1000))
+      
+      // Check if double braces still exist after all fixes
+      if (cleanedCode.match(/data\s*=\s*\{\{/)) {
+        console.error('❌ Double braces still found in cleaned code!')
+        const match = cleanedCode.match(/data\s*=\s*\{\{[^}]+\}\}/)
+        if (match) {
+          console.error('Found:', match[0])
+          // Force fix it
+          cleanedCode = cleanedCode.replace(/data\s*=\s*\{\{([^}]+)\}\}/g, 'data={$1}')
+          console.log('✅ Force-fixed double braces')
+        }
+      }
       
       // Check if component has a return statement
       if (!cleanedCode.includes('return')) {
@@ -226,6 +253,11 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
         console.warn('⚠️ Component code contains "return null" or "return undefined" - this will cause empty render')
       }
 
+      // Final aggressive fix for double braces RIGHT BEFORE wrapping (last chance!)
+      // This catches any remaining data={{variable}} patterns
+      cleanedCode = cleanedCode.replace(/data\s*=\s*\{\{\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\}\}/g, 'data={$1}')
+      cleanedCode = cleanedCode.replace(/data=\{\{([a-zA-Z_$][a-zA-Z0-9_$]*)\}\}/g, 'data={$1}')
+      
       // Wrap code to create a component factory with Recharts components, React hooks, and dashboard components in scope
       const wrappedCode = `
         (function(React, Recharts, DashboardComponents) {
@@ -328,8 +360,6 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
 
       // Track if this effect is still active
       let isActive = true
-      let timeoutId: ReturnType<typeof setTimeout> | null = null
-      let rafId: number | null = null
       
       // Transform data to ensure numeric fields are numbers (Recharts needs numbers)
       // This must be done BEFORE any use of transformedData
@@ -442,90 +472,23 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
           </ErrorBoundary>
         )
         
-        console.log('Component render scheduled')
+        const renderEndTime = performance.now()
+        const renderDuration = renderEndTime - renderStartTime
+        
+        console.log('Component rendered')
+        console.log(`⏱️ Dashboard render time: ${renderDuration.toFixed(2)}ms`)
         setRenderAttempted(true)
         
-        // Check after render completes (with proper cleanup)
-        rafId = requestAnimationFrame(() => {
-          timeoutId = setTimeout(() => {
-            if (!isActive || !containerRef.current || !rootRef.current) return
-            
-            const renderEndTime = performance.now()
-            const renderDuration = renderEndTime - renderStartTime
-            
-            const container = containerRef.current
-            const hasChildren = container.children.length > 0
-            const hasTextContent = container.textContent && container.textContent.trim().length > 0
-            const innerHTML = container.innerHTML
-            
-            console.log('Container check:', {
-              hasChildren,
-              childrenCount: container.children.length,
-              hasTextContent,
-              textContentLength: container.textContent?.length || 0,
-              innerHTMLLength: innerHTML.length,
-              innerHTMLPreview: innerHTML.substring(0, 500),
-              containerHTML: container.innerHTML.substring(0, 1000)
-            })
-            console.log(`⏱️ Dashboard render time: ${renderDuration.toFixed(2)}ms`)
-            
-            // Log what data fields are available
-            if (transformedData && transformedData.length > 0) {
-              console.log('Data fields available:', Object.keys(transformedData[0]))
-              console.log('Sample data row:', transformedData[0])
-              console.log('Data types:', Object.keys(transformedData[0]).map(key => ({
-                key,
-                type: typeof transformedData[0][key],
-                value: transformedData[0][key]
-              })))
-            }
-            
-            if (!hasChildren && !hasTextContent && innerHTML.length < 100) {
-              console.warn('Dashboard container appears empty after render')
-              console.warn('This might mean the component returned null or an empty fragment')
-              console.warn('Component element:', element)
-              console.warn('Component type:', element?.type)
-              
-              // Only try test render if component is still mounted
-              if (isActive && rootRef.current) {
-                try {
-                  // Try rendering a test component to verify React root works
-                  const testElement = React.createElement('div', {
-                    style: { padding: '20px', backgroundColor: '#fee', border: '2px solid #f00' },
-                    'data-test': 'test-render'
-                  }, 'TEST: React root works. Component may be returning null.')
-                  
-                  rootRef.current.render(testElement)
-                  
-                  setTimeout(() => {
-                    if (!isActive || !containerRef.current || !rootRef.current) return
-                    
-                    if (container.querySelector('[data-test="test-render"]')) {
-                      console.log('✅ React root works - the issue is with the component code')
-                      console.log('Component may be returning null, undefined, or an empty fragment')
-                      // Re-render the actual component only if still mounted
-                      if (isActive && rootRef.current) {
-                        rootRef.current.render(
-                          <ErrorBoundary onError={handleRenderError}>
-                            <div style={{ width: '100%', height: '100%', minHeight: '400px' }}>
-                              {element}
-                            </div>
-                          </ErrorBoundary>
-                        )
-                      }
-                    } else {
-                      console.error('❌ React root test failed - React may not be rendering')
-                    }
-                  }, 200)
-                } catch (renderError) {
-                  if (isActive) {
-                    console.error('Error during test render (component may be unmounted):', renderError)
-                  }
-                }
-              }
-            }
-          }, 1000) // Increased timeout
-        })
+        // Log data info for debugging
+        if (transformedData && transformedData.length > 0) {
+          console.log('Data fields available:', Object.keys(transformedData[0]))
+          console.log('Sample data row:', transformedData[0])
+          console.log('Data types:', Object.keys(transformedData[0]).map(key => ({
+            key,
+            type: typeof transformedData[0][key],
+            value: transformedData[0][key]
+          })))
+        }
       } catch (err) {
         if (isActive) {
           console.error('Error during render:', err)
@@ -536,12 +499,9 @@ export function DynamicDashboard({ componentCode, data }: DynamicDashboardProps)
       // Cleanup function
       return () => {
         isActive = false
-        // Cancel pending operations
-        if (timeoutId !== null) {
-          clearTimeout(timeoutId)
-        }
-        if (rafId !== null) {
-          cancelAnimationFrame(rafId)
+        // Cleanup: unmount the React root when component unmounts
+        if (rootRef.current) {
+          rootRef.current.render(null)
         }
       }
 

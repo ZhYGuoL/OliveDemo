@@ -1,4 +1,6 @@
 import React, { useRef, useEffect } from 'react'
+import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 
 interface CheckboxOption {
   value: string
@@ -50,73 +52,46 @@ export function CheckboxFilter({
   }
 
   return (
-    <div style={{ marginBottom: '24px' }}>
-      <h3 style={{ marginBottom: '8px', fontSize: '14px', fontWeight: 600, color: '#374151' }}>
+    <div className="mb-6">
+      <h3 className="mb-2 text-sm font-semibold text-gray-700">
         {label}
       </h3>
       {description && (
-        <p style={{ marginBottom: '12px', fontSize: '12px', color: '#6B7280' }}>
+        <p className="mb-3 text-xs text-gray-500">
           {description}
         </p>
       )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div className="flex flex-col gap-2">
         {showSelectAll && (
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '8px 0',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: 500,
-              color: '#111827'
-            }}
-          >
+          <Label className="flex items-center py-2 cursor-pointer font-medium">
             <input
               type="checkbox"
               ref={selectAllRef}
               checked={allSelected}
               onChange={handleSelectAll}
-              style={{
-                marginRight: '8px',
-                width: '16px',
-                height: '16px',
-                cursor: 'pointer'
-              }}
+              className="mr-2 w-4 h-4 cursor-pointer"
             />
             Select All
-          </label>
+          </Label>
         )}
         {options.map((option) => (
-          <label
+          <Label
             key={option.value}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '6px 0',
-              cursor: 'pointer',
-              fontSize: '14px',
-              color: '#374151'
-            }}
+            className="flex items-center py-1.5 cursor-pointer"
           >
             <input
               type="checkbox"
               checked={selectedValues.includes(option.value)}
               onChange={() => handleOptionToggle(option.value)}
-              style={{
-                marginRight: '8px',
-                width: '16px',
-                height: '16px',
-                cursor: 'pointer'
-              }}
+              className="mr-2 w-4 h-4 cursor-pointer"
             />
             {option.label}
             {option.count !== undefined && (
-              <span style={{ marginLeft: '8px', color: '#6B7280', fontSize: '12px' }}>
+              <span className="ml-2 text-xs text-gray-500">
                 ({option.count})
               </span>
             )}
-          </label>
+          </Label>
         ))}
       </div>
     </div>

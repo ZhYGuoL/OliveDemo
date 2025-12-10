@@ -1,4 +1,5 @@
 import React, { ReactNode } from 'react'
+import { cn } from '@/lib/utils'
 
 interface FilterSectionProps {
   children: ReactNode
@@ -12,27 +13,15 @@ export function FilterSection({
   description
 }: FilterSectionProps) {
   return (
-    <div style={{
-      marginBottom: '32px',
-      padding: '20px',
-      backgroundColor: '#F9FAFB',
-      border: '1px solid #E5E7EB',
-      borderRadius: '8px'
-    }}>
-      <h3 style={{
-        marginBottom: description ? '8px' : '16px',
-        fontSize: '16px',
-        fontWeight: 600,
-        color: '#111827'
-      }}>
+    <div className="mb-8 p-5 bg-gray-50 border border-gray-200 rounded-lg">
+      <h3 className={cn(
+        "text-base font-semibold text-gray-900",
+        description ? "mb-2" : "mb-4"
+      )}>
         {title}
       </h3>
       {description && (
-        <p style={{
-          marginBottom: '16px',
-          fontSize: '14px',
-          color: '#6B7280'
-        }}>
+        <p className="mb-4 text-sm text-gray-600">
           {description}
         </p>
       )}
