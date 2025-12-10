@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react'
 import './App.css'
-import { DynamicDashboard } from './components/DynamicDashboard'
+import { SchemaRenderer } from './components/SchemaRenderer'
 import { ChatSidebar } from './components/ChatSidebar'
 import { DataSourceModal } from './components/DataSourceModal'
 import { ConnectionForm } from './components/ConnectionForm'
 import { apiEndpoint } from './config'
+import { DashboardSpec } from './types/dashboard'
 
 interface DashboardResponse {
-  sql: string
-  reactComponent: string
-  dataPreview: Record<string, any>[]
+  spec: DashboardSpec
+  data: Record<string, any[]>
 }
 
 function App() {
@@ -21,8 +21,7 @@ function App() {
   const [showChat, setShowChat] = useState(false)
   const [chatHistory, setChatHistory] = useState<Array<{role: 'user' | 'assistant', content: string}>>([])
   const [chatInput, setChatInput] = useState('')
-  const [showSQL, setShowSQL] = useState(false)
-  const [showCode, setShowCode] = useState(false)
+  const [showJSON, setShowJSON] = useState(false)
   const [showDataSourceModal, setShowDataSourceModal] = useState(false)
   const [showConnectionForm, setShowConnectionForm] = useState(false)
   const [selectedDataSource, setSelectedDataSource] = useState<'postgresql' | 'supabase' | 'mysql' | null>(null)
@@ -35,12 +34,11 @@ function App() {
     setLoading(true)
     setError(null)
 
-    // Add user message to chat history
     const userMessage = prompt.trim()
     setChatHistory(prev => [...prev, { role: 'user', content: userMessage }])
 
     try {
-      const response = await fetch('http://localhost:8000/generate_dashboard', {
+      const response = await fetch(apiEndpoint('generate_dashboard'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -61,15 +59,13 @@ function App() {
       const data: DashboardResponse = await response.json()
       setResult(data)
       
-      // Show chat sidebar after first successful query
       if (!showChat) {
         setShowChat(true)
       }
       
-      // Add assistant response to chat
       setChatHistory(prev => [...prev, {
         role: 'assistant',
-        content: `I've generated a dashboard based on your request: "${userMessage}". The dashboard is displayed below.`
+        content: `I've generated a dashboard based on your request: "${userMessage}".`
       }])
     } catch (err) {
       let errorMsg = 'An unexpected error occurred'
@@ -95,7 +91,6 @@ function App() {
 
   const checkDatabaseConnection = async () => {
     try {
-      // Try to get schema to verify database connection
       const schemaResponse = await fetch(apiEndpoint('schema'))
       if (schemaResponse.ok) {
         const data = await schemaResponse.json()
@@ -115,9 +110,8 @@ function App() {
   }
 
   const handleConnect = async (connectionString: string) => {
-    // Create an AbortController for timeout
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
     
     try {
       const response = await fetch(apiEndpoint('connect'), {
@@ -137,8 +131,6 @@ function App() {
       }
 
       await response.json()
-      
-      // Verify connection by checking schema
       await checkDatabaseConnection()
       setShowConnectionForm(false)
       setSelectedDataSource(null)
@@ -177,7 +169,7 @@ function App() {
 
       const data: DashboardResponse = await response.json()
       setResult(data)
-      setError(null) // Clear any previous errors
+      setError(null)
       setChatHistory(prev => [...prev, {
         role: 'assistant',
         content: `I've updated the dashboard based on your request.`
@@ -198,7 +190,6 @@ function App() {
       setLoading(false)
     }
   }
-
 
   return (
     <div className="app">
@@ -364,18 +355,14 @@ function App() {
             <div className="result-section">
               <div className="dashboard-header-bar">
                 <div className="dashboard-header-left">
-                  <h1 className="dashboard-header-title">Margin Insights Dashboard</h1>
                   <div className="dashboard-header-meta">
                     <span className="db-icon-small">🗄️</span>
-                    <span className="dashboard-url">dashboard.com/dashboards/margin-insights</span>
+                    <span className="dashboard-url">dashboard.com/dashboards/preview</span>
                   </div>
                 </div>
                 <div className="dashboard-header-actions">
-                  <button className="header-action-button" onClick={() => setShowSQL(!showSQL)}>
-                    <span>Preview SQL</span>
-                  </button>
-                  <button className="header-action-icon" title="Code" onClick={() => setShowCode(!showCode)}>
-                    <span>💻</span>
+                  <button className="header-action-icon" title="View JSON Spec" onClick={() => setShowJSON(!showJSON)}>
+                    <span>{`{}`}</span>
                   </button>
                   <button className="header-action-button primary">
                     <span>Share</span>
@@ -384,26 +371,17 @@ function App() {
               </div>
               
               <div className="dashboard-container">
-                <DynamicDashboard
-                  componentCode={result.reactComponent}
-                  data={result.dataPreview}
+                <SchemaRenderer
+                  spec={result.spec}
+                  data={result.data}
                 />
               </div>
 
-              {showSQL && (
+              {showJSON && (
                 <div className="result-panel">
-                  <h2>Generated SQL</h2>
+                  <h2>Dashboard Spec</h2>
                   <pre className="code-block">
-                    <code>{result.sql}</code>
-                  </pre>
-                </div>
-              )}
-
-              {showCode && (
-                <div className="result-panel">
-                  <h2>Component Code</h2>
-                  <pre className="code-block">
-                    <code>{result.reactComponent}</code>
+                    <code>{JSON.stringify(result.spec, null, 2)}</code>
                   </pre>
                 </div>
               )}
@@ -416,4 +394,3 @@ function App() {
 }
 
 export default App
-

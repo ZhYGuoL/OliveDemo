@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Dashboard Generator API")
 
 # CORS middleware for frontend
-# Get allowed origins from environment variable or use defaults
 allowed_origins = os.getenv(
     "CORS_ORIGINS",
     "http://localhost:5173,http://localhost:3000"
@@ -36,9 +35,8 @@ class GenerateDashboardRequest(BaseModel):
     prompt: str
 
 class GenerateDashboardResponse(BaseModel):
-    sql: str
-    reactComponent: str
-    dataPreview: List[Dict[str, Any]]
+    spec: Dict[str, Any]
+    data: Dict[str, List[Dict[str, Any]]]
 
 class ConnectRequest(BaseModel):
     database_url: str
@@ -50,9 +48,7 @@ async def health():
 
 @app.post("/connect")
 async def connect_database(request: ConnectRequest):
-    """
-    Connect to a database by setting the DATABASE_URL.
-    """
+    """Connect to a database by setting the DATABASE_URL."""
     logger.info(f"Connection request received for: {request.database_url.split('@')[1] if '@' in request.database_url else 'database'}")
     
     try:
@@ -127,9 +123,7 @@ async def connect_database(request: ConnectRequest):
 
 @app.get("/schema")
 async def get_schema():
-    """
-    Get database schema to verify connection.
-    """
+    """Get database schema to verify connection."""
     try:
         schema = database.get_schema_ddl()
         return {"schema": schema, "connected": True}
@@ -143,22 +137,22 @@ async def get_schema():
 @app.post("/generate_dashboard", response_model=GenerateDashboardResponse)
 async def generate_dashboard(request: GenerateDashboardRequest):
     """
-    Generate SQL query and React component from natural language prompt.
+    Generate dashboard spec and fetch data.
     """
     try:
         # Get database schema
         db_schema_ddl = database.get_schema_ddl()
         
-        # Generate SQL and React component via LLM
+        # Generate Spec via LLM
         try:
             logger.info(f"Generating dashboard for prompt: {request.prompt[:100]}")
-            llm_result = llm_service.generate_dashboard(request.prompt, db_schema_ddl)
-            logger.info("Successfully generated dashboard")
+            spec = llm_service.generate_dashboard(request.prompt, db_schema_ddl)
+            logger.info("Successfully generated dashboard spec")
         except ValueError as e:
             logger.error(f"JSON parsing error: {str(e)}")
             raise HTTPException(
                 status_code=500,
-                detail=f"Model returned invalid JSON. Please try again or simplify the request. Error: {str(e)}"
+                detail=f"Model returned invalid JSON. Error: {str(e)}"
             )
         except Exception as e:
             logger.error(f"LLM service error: {str(e)}", exc_info=True)
@@ -167,27 +161,33 @@ async def generate_dashboard(request: GenerateDashboardRequest):
                 detail=f"LLM service error: {str(e)}"
             )
         
-        sql_query = llm_result["sql"]
-        react_component = llm_result["reactComponent"]
+        # Execute SQL queries for each data source
+        data_results = {}
+        data_sources = spec.get("dataSources", [])
         
-        # Execute SQL query
-        try:
-            data_preview = database.execute_select_query(sql_query, limit=100)
-        except ValueError as e:
-            raise HTTPException(
-                status_code=400,
-                detail=f"SQL failed: {str(e)}. Generated SQL: {sql_query}"
-            )
+        for source in data_sources:
+            source_id = source.get("id")
+            sql_query = source.get("sql")
+            
+            if source_id and sql_query:
+                try:
+                    logger.info(f"Executing query for source {source_id}")
+                    results = database.execute_select_query(sql_query, limit=1000)
+                    data_results[source_id] = results
+                except ValueError as e:
+                    logger.warning(f"SQL failed for source {source_id}: {str(e)}")
+                    # Return empty list on error but don't fail the whole request
+                    data_results[source_id] = []
         
         return GenerateDashboardResponse(
-            sql=sql_query,
-            reactComponent=react_component,
-            dataPreview=data_preview
+            spec=spec,
+            data=data_results
         )
     
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Unexpected error: {str(e)}"
@@ -196,4 +196,3 @@ async def generate_dashboard(request: GenerateDashboardRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
