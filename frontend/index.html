@@ -5,7 +5,22 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dashboard Generator</title>
+    <!-- Load Babel standalone locally to avoid source map warnings -->
+    <script>
+      // Suppress source map warnings for Babel
+      const originalWarn = console.warn;
+      console.warn = function(...args) {
+        if (args[0] && typeof args[0] === 'string' && args[0].includes('Source map')) {
+          return; // Suppress source map warnings
+        }
+        originalWarn.apply(console, args);
+      };
+    </script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script>
+      // Restore console.warn after Babel loads
+      console.warn = console.warn || (() => {});
+    </script>
   </head>
   <body>
     <div id="root"></div>

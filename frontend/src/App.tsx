@@ -4,6 +4,7 @@ import { DynamicDashboard } from './components/DynamicDashboard'
 import { ChatSidebar } from './components/ChatSidebar'
 import { DataSourceModal } from './components/DataSourceModal'
 import { ConnectionForm } from './components/ConnectionForm'
+import { apiEndpoint } from './config'
 
 interface DashboardResponse {
   sql: string
@@ -73,7 +74,7 @@ function App() {
     } catch (err) {
       let errorMsg = 'An unexpected error occurred'
       if (err instanceof TypeError && err.message.includes('fetch')) {
-        errorMsg = 'Failed to connect to backend server. Make sure the backend is running on http://localhost:8000'
+        errorMsg = `Failed to connect to backend server. Make sure the backend is running on ${apiEndpoint('')}`
       } else if (err instanceof Error) {
         errorMsg = err.message
       }
@@ -95,7 +96,7 @@ function App() {
   const checkDatabaseConnection = async () => {
     try {
       // Try to get schema to verify database connection
-      const schemaResponse = await fetch('http://localhost:8000/schema')
+      const schemaResponse = await fetch(apiEndpoint('schema'))
       if (schemaResponse.ok) {
         const data = await schemaResponse.json()
         setDbConnected(data.connected || false)
@@ -119,7 +120,7 @@ function App() {
     const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
     
     try {
-      const response = await fetch('http://localhost:8000/connect', {
+      const response = await fetch(apiEndpoint('connect'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -156,7 +157,7 @@ function App() {
     setChatHistory(prev => [...prev, { role: 'user', content: message }])
 
     try {
-      const response = await fetch('http://localhost:8000/generate_dashboard', {
+      const response = await fetch(apiEndpoint('generate_dashboard'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -184,7 +185,7 @@ function App() {
     } catch (err) {
       let errorMsg = 'Failed to process request'
       if (err instanceof TypeError && err.message.includes('fetch')) {
-        errorMsg = 'Failed to connect to backend server. Make sure the backend is running on http://localhost:8000'
+        errorMsg = `Failed to connect to backend server. Make sure the backend is running on ${apiEndpoint('')}`
       } else if (err instanceof Error) {
         errorMsg = err.message
       }
@@ -292,9 +293,10 @@ function App() {
         onSelect={handleDataSourceSelect}
       />
 
-      {showConnectionForm && selectedDataSource && (
+      {selectedDataSource && (
         <ConnectionForm
           type={selectedDataSource}
+          isOpen={showConnectionForm}
           onConnect={handleConnect}
           onCancel={() => {
             setShowConnectionForm(false)
