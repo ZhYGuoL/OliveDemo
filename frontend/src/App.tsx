@@ -12,11 +12,19 @@ interface DashboardResponse {
   data: Record<string, any[]>
 }
 
+interface DashboardSnapshot {
+  id: string
+  prompt: string
+  result: DashboardResponse
+  createdAt: string
+}
+
 interface ChatSession {
   id: string
   title: string
   messages: Array<{ role: 'user' | 'assistant'; content: string }>
   result: DashboardResponse | null
+  dashboards: DashboardSnapshot[]
   createdAt: string
   updatedAt: string
 }
@@ -61,11 +69,33 @@ function App() {
 
   const normalizeSession = (session: any): ChatSession => {
     const now = new Date().toISOString()
+    const normalizedResult = trimResult(session?.result ?? null)
+    const dashboardsRaw = Array.isArray(session?.dashboards) ? session.dashboards : []
+    const dashboards: DashboardSnapshot[] = dashboardsRaw
+      .map((d: any) => ({
+        id: String(d?.id ?? `dash-${Date.now()}`),
+        prompt: typeof d?.prompt === 'string' ? d.prompt : '',
+        result: trimResult(d?.result) ?? null,
+        createdAt: typeof d?.createdAt === 'string' ? d.createdAt : now,
+      }))
+      .filter((d: DashboardSnapshot | null) => d?.result !== null) as DashboardSnapshot[]
+
+    // Backfill a single dashboard from legacy result if none exist
+    if (dashboards.length === 0 && normalizedResult) {
+      dashboards.push({
+        id: `dash-${Date.now()}`,
+        prompt: typeof session?.title === 'string' ? session.title : 'Dashboard',
+        result: normalizedResult,
+        createdAt: now,
+      })
+    }
+
     return {
       id: String(session?.id ?? `chat-${Date.now()}`),
       title: typeof session?.title === 'string' ? session.title : 'Chat',
       messages: normalizeMessages(session?.messages ?? []),
-      result: trimResult(session?.result ?? null),
+      result: normalizedResult,
+      dashboards,
       createdAt: typeof session?.createdAt === 'string' ? session.createdAt : now,
       updatedAt: typeof session?.updatedAt === 'string' ? session.updatedAt : now,
     }
@@ -124,6 +154,7 @@ function App() {
       title,
       messages: [],
       result: null,
+      dashboards: [],
       createdAt: now,
       updatedAt: now
     }
@@ -150,7 +181,8 @@ function App() {
     if (!session) return
     setActiveSessionId(id)
     setChatHistory(session.messages)
-    setResult(session.result)
+    const latestDash = session.dashboards[session.dashboards.length - 1]
+    setResult(latestDash ? latestDash.result : session.result)
     setShowChat(session.messages.length > 0)
     setPrompt('Build a table for me to see all my users.')
   }
@@ -206,13 +238,30 @@ function App() {
         // For now, we'll append.
         
         // We need to merge the specs intelligently
+        // Filter out existing widgets if IDs clash (though rare with sequential prompts)
+        const existingWidgetIds = new Set(result.spec.widgets.map(w => w.id))
+        const newWidgets = data.spec.widgets.filter(w => !existingWidgetIds.has(w.id))
+        
         const mergedSpec: DashboardSpec = {
           ...result.spec,
-          widgets: [...result.spec.widgets, ...data.spec.widgets],
-          dataSources: [...result.spec.dataSources, ...data.spec.dataSources]
+          widgets: [...result.spec.widgets, ...newWidgets],
+          dataSources: [...result.spec.dataSources, ...data.spec.dataSources] // We can optimize this by deduplicating sources too
         }
         
-        const mergedData = { ...result.data, ...data.data }
+        // Merge data: Preserve existing data, add new data sources
+        // Important: If a data source ID exists in both, the new one overwrites (assuming it might be a refresh)
+        // But for "add new component", we generally expect new source IDs or reuse of existing ones.
+        // If the new request generated a source with same ID but no data (empty list), we should prefer the existing data if valid.
+        
+        const mergedData = { ...result.data }
+        Object.entries(data.data).forEach(([key, value]) => {
+           // If we already have data for this key and the new data is empty, keep the old one.
+           // Otherwise, update it.
+           if (mergedData[key] && (!value || value.length === 0)) {
+             return; 
+           }
+           mergedData[key] = value
+        })
         
         const mergedResult = {
           spec: mergedSpec,
@@ -243,16 +292,23 @@ function App() {
           setShowChat(true)
         }
         
-        const assistantMessage: ChatSession['messages'][number] = {
+      const assistantMessage: ChatSession['messages'][number] = {
           role: 'assistant',
           content: `I've generated a dashboard based on your request: "${userMessage}".`
         }
         const finalMessages: ChatSession['messages'] = [...userMessages, assistantMessage]
         setChatHistory(finalMessages)
+      const dashboardSnapshot: DashboardSnapshot = {
+        id: `dash-${Date.now()}`,
+        prompt: userMessage,
+        result: trimResult(data)!,
+        createdAt: new Date().toISOString(),
+      }
       const finalSession: ChatSession = {
           ...updatedSession,
           messages: finalMessages,
         result: trimResult(data),
+        dashboards: [...updatedSession.dashboards, dashboardSnapshot].slice(0, MAX_SESSIONS),
           updatedAt: new Date().toISOString()
         }
         upsertSession(finalSession)
@@ -274,6 +330,7 @@ function App() {
       const finalSession: ChatSession = {
         ...updatedSession,
         messages: errorMessages,
+        dashboards: updatedSession.dashboards,
         result: trimResult(result),
         updatedAt: new Date().toISOString()
       }
@@ -380,18 +437,61 @@ function App() {
       }
 
       const data: DashboardResponse = await response.json()
-      setResult(data)
-      setError(null)
-      const assistantMessage: ChatSession['messages'][number] = { role: 'assistant', content: `I've updated the dashboard based on your request.` }
-      const finalMessages: ChatSession['messages'] = [...userMessages, assistantMessage]
-      setChatHistory(finalMessages)
-      const finalSession: ChatSession = {
-        ...updatedSession,
-        messages: finalMessages,
-        result: trimResult(data),
-        updatedAt: new Date().toISOString()
+      
+      // Merge new widgets and data sources with existing result if available
+      if (result && result.spec) {
+        const mergedSpec: DashboardSpec = {
+          ...result.spec,
+          widgets: [...result.spec.widgets, ...data.spec.widgets],
+          dataSources: [...result.spec.dataSources, ...data.spec.dataSources]
+        }
+        
+        const mergedData = { ...result.data, ...data.data }
+        
+        const mergedResult = {
+          spec: mergedSpec,
+          data: mergedData
+        }
+        
+        setResult(mergedResult)
+        
+        const assistantMessage: ChatSession['messages'][number] = { role: 'assistant', content: `I've updated the dashboard based on your request.` }
+        const finalMessages: ChatSession['messages'] = [...userMessages, assistantMessage]
+        setChatHistory(finalMessages)
+        const dashboardSnapshot: DashboardSnapshot = {
+          id: `dash-${Date.now()}`,
+          prompt: message,
+          result: trimResult(mergedResult)!,
+          createdAt: new Date().toISOString(),
+        }
+        const finalSession: ChatSession = {
+          ...updatedSession,
+          messages: finalMessages,
+          result: trimResult(mergedResult),
+          dashboards: [...updatedSession.dashboards, dashboardSnapshot].slice(0, MAX_SESSIONS),
+          updatedAt: new Date().toISOString()
+        }
+        upsertSession(finalSession)
+      } else {
+        setResult(data)
+        const assistantMessage: ChatSession['messages'][number] = { role: 'assistant', content: `I've updated the dashboard based on your request.` }
+        const finalMessages: ChatSession['messages'] = [...userMessages, assistantMessage]
+        setChatHistory(finalMessages)
+        const dashboardSnapshot: DashboardSnapshot = {
+          id: `dash-${Date.now()}`,
+          prompt: message,
+          result: trimResult(data)!,
+          createdAt: new Date().toISOString(),
+        }
+        const finalSession: ChatSession = {
+          ...updatedSession,
+          messages: finalMessages,
+          result: trimResult(data),
+          dashboards: [...updatedSession.dashboards, dashboardSnapshot].slice(0, MAX_SESSIONS),
+          updatedAt: new Date().toISOString()
+        }
+        upsertSession(finalSession)
       }
-      upsertSession(finalSession)
     } catch (err) {
       let errorMsg = 'Failed to process request'
       if (err instanceof TypeError && err.message.includes('fetch')) {
