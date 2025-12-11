@@ -102,13 +102,8 @@ async def connect_database(request: ConnectRequest):
                 detail=f"Failed to connect to database: {str(conn_error)}"
             )
         
-        # Set the environment variable (in-memory for this session)
-        os.environ["DATABASE_URL"] = request.database_url
-        
-        # Reset the database adapter singleton to use the new connection
-        import database
-        database._adapter = None
-        database._current_database_url = None
+        # Set the database connection using the module function (persists until manually disconnected)
+        database.set_database_url(request.database_url)
         
         logger.info(f"Database connected successfully: {request.database_url.split('@')[1] if '@' in request.database_url else 'connected'}")
         return {"status": "connected", "message": "Database connected successfully"}
@@ -125,13 +120,36 @@ async def connect_database(request: ConnectRequest):
 async def get_schema():
     """Get database schema to verify connection."""
     try:
+        # Check if database is connected
+        current_url = database.get_current_database_url()
+        if not current_url:
+            return {"schema": "", "connected": False}
+        
         schema = database.get_schema_ddl()
         return {"schema": schema, "connected": True}
+    except RuntimeError as e:
+        # No database connected
+        logger.info(f"No database connected: {str(e)}")
+        return {"schema": "", "connected": False}
     except Exception as e:
         logger.error(f"Schema retrieval error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to retrieve schema: {str(e)}"
+        )
+
+@app.post("/disconnect")
+async def disconnect_database():
+    """Disconnect from the current database."""
+    try:
+        database.clear_database_connection()
+        logger.info("Database disconnected successfully")
+        return {"status": "disconnected", "message": "Database disconnected successfully"}
+    except Exception as e:
+        logger.error(f"Database disconnection error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to disconnect database: {str(e)}"
         )
 
 @app.post("/generate_dashboard", response_model=GenerateDashboardResponse)

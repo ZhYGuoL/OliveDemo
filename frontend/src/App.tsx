@@ -12,6 +12,15 @@ interface DashboardResponse {
   data: Record<string, any[]>
 }
 
+interface ChatSession {
+  id: string
+  title: string
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>
+  result: DashboardResponse | null
+  createdAt: string
+  updatedAt: string
+}
+
 function App() {
   const [prompt, setPrompt] = useState('Build a table for me to see all my users.')
   const [loading, setLoading] = useState(false)
@@ -26,6 +35,125 @@ function App() {
   const [showConnectionForm, setShowConnectionForm] = useState(false)
   const [selectedDataSource, setSelectedDataSource] = useState<'postgresql' | 'supabase' | 'mysql' | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([])
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+
+  const LOCAL_STORAGE_KEY = 'chatSessions'
+  const MAX_SESSIONS = 20
+  const MAX_ROWS_PER_SOURCE = 200
+
+  const trimResult = (result: DashboardResponse | null): DashboardResponse | null => {
+    if (!result) return null
+    const trimmedData = Object.fromEntries(
+      Object.entries(result.data || {}).map(([k, v]) => [
+        k,
+        Array.isArray(v) ? v.slice(0, MAX_ROWS_PER_SOURCE) : v,
+      ])
+    )
+    return { ...result, data: trimmedData }
+  }
+
+  const normalizeMessages = (messages: any[]) =>
+    (messages || []).map((m) => ({
+      role: m?.role === 'assistant' ? 'assistant' as const : 'user' as const,
+      content: typeof m?.content === 'string' ? m.content : '',
+    }))
+
+  const normalizeSession = (session: any): ChatSession => {
+    const now = new Date().toISOString()
+    return {
+      id: String(session?.id ?? `chat-${Date.now()}`),
+      title: typeof session?.title === 'string' ? session.title : 'Chat',
+      messages: normalizeMessages(session?.messages ?? []),
+      result: trimResult(session?.result ?? null),
+      createdAt: typeof session?.createdAt === 'string' ? session.createdAt : now,
+      updatedAt: typeof session?.updatedAt === 'string' ? session.updatedAt : now,
+    }
+  }
+
+  // Load saved sessions on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LOCAL_STORAGE_KEY)
+      if (stored) {
+        const parsedRaw = JSON.parse(stored)
+        const parsed: ChatSession[] = Array.isArray(parsedRaw)
+          ? parsedRaw.map(normalizeSession)
+          : []
+        setChatSessions(parsed)
+        if (parsed.length > 0) {
+          const latest = parsed[0]
+          setActiveSessionId(latest.id)
+          setChatHistory(latest.messages)
+          setResult(latest.result)
+          setShowChat(latest.messages.length > 0)
+        }
+      }
+    } catch {
+      // ignore load errors
+    }
+  }, [])
+
+  // Persist sessions
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(chatSessions))
+    } catch (e) {
+      // storage might fail (quota); ignore persist errors
+      console.warn('Failed to persist chat sessions', e)
+    }
+  }, [chatSessions])
+
+  const findSession = (id: string | null) => chatSessions.find(s => s.id === id)
+
+  const upsertSession = (session: ChatSession) => {
+    setChatSessions(prev => {
+      const idx = prev.findIndex(s => s.id === session.id)
+      const updated = idx >= 0 ? [...prev.slice(0, idx), session, ...prev.slice(idx + 1)] : [session, ...prev]
+      // keep most recent updated first and limit count
+      const sorted = updated.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
+      return sorted.slice(0, MAX_SESSIONS)
+    })
+  }
+
+  const createSession = (title: string) => {
+    const now = new Date().toISOString()
+    const id = `chat-${Date.now()}`
+    const session: ChatSession = {
+      id,
+      title,
+      messages: [],
+      result: null,
+      createdAt: now,
+      updatedAt: now
+    }
+    setActiveSessionId(id)
+    setChatHistory([])
+    setResult(null)
+    setShowChat(false)
+    setChatSessions(prev => [session, ...prev])
+    return session
+  }
+
+  const startNewChat = () => {
+    const session = createSession('New chat')
+    setActiveSessionId(session.id)
+    setPrompt('Build a table for me to see all my users.')
+    setChatInput('')
+    setChatHistory([])
+    setResult(null)
+    setShowChat(false)
+  }
+
+  const selectSession = (id: string) => {
+    const session = findSession(id)
+    if (!session) return
+    setActiveSessionId(id)
+    setChatHistory(session.messages)
+    setResult(session.result)
+    setShowChat(session.messages.length > 0)
+    setPrompt('Build a table for me to see all my users.')
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,7 +163,21 @@ function App() {
     setError(null)
 
     const userMessage = prompt.trim()
-    setChatHistory(prev => [...prev, { role: 'user', content: userMessage }])
+    let sessionMaybe = findSession(activeSessionId)
+    if (!sessionMaybe) {
+      sessionMaybe = createSession(userMessage.slice(0, 40) || 'New chat')
+    }
+    const session: ChatSession = sessionMaybe
+
+    const userMessages: ChatSession['messages'] = [...session.messages, { role: 'user' as const, content: userMessage }]
+    const updatedSession: ChatSession = {
+      ...session,
+      messages: userMessages,
+      updatedAt: new Date().toISOString(),
+    }
+    upsertSession(updatedSession)
+    setChatHistory(userMessages)
+    setActiveSessionId(updatedSession.id)
 
     try {
       const response = await fetch(apiEndpoint('generate_dashboard'), {
@@ -57,16 +199,64 @@ function App() {
       }
 
       const data: DashboardResponse = await response.json()
-      setResult(data)
       
-      if (!showChat) {
-        setShowChat(true)
+      // Merge new widgets and data sources with existing result if available
+      if (result && result.spec) {
+        // Create new widget IDs to avoid collisions if necessary (though LLM should generate unique ones in ideal world)
+        // For now, we'll append.
+        
+        // We need to merge the specs intelligently
+        const mergedSpec: DashboardSpec = {
+          ...result.spec,
+          widgets: [...result.spec.widgets, ...data.spec.widgets],
+          dataSources: [...result.spec.dataSources, ...data.spec.dataSources]
+        }
+        
+        const mergedData = { ...result.data, ...data.data }
+        
+        const mergedResult = {
+          spec: mergedSpec,
+          data: mergedData
+        }
+        
+        setResult(mergedResult)
+        
+        // Update session with merged result
+        const assistantMessage: ChatSession['messages'][number] = {
+          role: 'assistant',
+          content: `I've added the new components to your dashboard based on your request: "${userMessage}".`
+        }
+        const finalMessages: ChatSession['messages'] = [...userMessages, assistantMessage]
+        setChatHistory(finalMessages)
+        const finalSession: ChatSession = {
+          ...updatedSession,
+          messages: finalMessages,
+          result: mergedResult,
+          updatedAt: new Date().toISOString()
+        }
+        upsertSession(finalSession)
+      } else {
+        // First query, just set the result
+        setResult(data)
+        
+        if (!showChat) {
+          setShowChat(true)
+        }
+        
+        const assistantMessage: ChatSession['messages'][number] = {
+          role: 'assistant',
+          content: `I've generated a dashboard based on your request: "${userMessage}".`
+        }
+        const finalMessages: ChatSession['messages'] = [...userMessages, assistantMessage]
+        setChatHistory(finalMessages)
+      const finalSession: ChatSession = {
+          ...updatedSession,
+          messages: finalMessages,
+        result: trimResult(data),
+          updatedAt: new Date().toISOString()
+        }
+        upsertSession(finalSession)
       }
-      
-      setChatHistory(prev => [...prev, {
-        role: 'assistant',
-        content: `I've generated a dashboard based on your request: "${userMessage}".`
-      }])
     } catch (err) {
       let errorMsg = 'An unexpected error occurred'
       if (err instanceof TypeError && err.message.includes('fetch')) {
@@ -75,10 +265,19 @@ function App() {
         errorMsg = err.message
       }
       setError(errorMsg)
-      setChatHistory(prev => [...prev, {
+      const assistantMessage: ChatSession['messages'][number] = {
         role: 'assistant',
         content: `Error: ${errorMsg}`
-      }])
+      }
+      const errorMessages: ChatSession['messages'] = [...userMessages, assistantMessage]
+      setChatHistory(errorMessages)
+      const finalSession: ChatSession = {
+        ...updatedSession,
+        messages: errorMessages,
+        result: trimResult(result),
+        updatedAt: new Date().toISOString()
+      }
+      upsertSession(finalSession)
     } finally {
       setLoading(false)
     }
@@ -146,7 +345,20 @@ function App() {
 
   const handleChatMessage = async (message: string) => {
     setLoading(true)
-    setChatHistory(prev => [...prev, { role: 'user', content: message }])
+    let sessionMaybe = findSession(activeSessionId)
+    if (!sessionMaybe) {
+      sessionMaybe = createSession(message.slice(0, 40) || 'New chat')
+    }
+    const session: ChatSession = sessionMaybe
+    const userMessages: ChatSession['messages'] = [...session.messages, { role: 'user' as const, content: message }]
+    const updatedSession: ChatSession = {
+      ...session,
+      messages: userMessages,
+      updatedAt: new Date().toISOString(),
+    }
+    upsertSession(updatedSession)
+    setChatHistory(userMessages)
+    setActiveSessionId(updatedSession.id)
 
     try {
       const response = await fetch(apiEndpoint('generate_dashboard'), {
@@ -170,10 +382,16 @@ function App() {
       const data: DashboardResponse = await response.json()
       setResult(data)
       setError(null)
-      setChatHistory(prev => [...prev, {
-        role: 'assistant',
-        content: `I've updated the dashboard based on your request.`
-      }])
+      const assistantMessage: ChatSession['messages'][number] = { role: 'assistant', content: `I've updated the dashboard based on your request.` }
+      const finalMessages: ChatSession['messages'] = [...userMessages, assistantMessage]
+      setChatHistory(finalMessages)
+      const finalSession: ChatSession = {
+        ...updatedSession,
+        messages: finalMessages,
+        result: trimResult(data),
+        updatedAt: new Date().toISOString()
+      }
+      upsertSession(finalSession)
     } catch (err) {
       let errorMsg = 'Failed to process request'
       if (err instanceof TypeError && err.message.includes('fetch')) {
@@ -182,10 +400,16 @@ function App() {
         errorMsg = err.message
       }
       setError(errorMsg)
-      setChatHistory(prev => [...prev, {
-        role: 'assistant',
-        content: `Error: ${errorMsg}`
-      }])
+      const assistantMessage: ChatSession['messages'][number] = { role: 'assistant', content: `Error: ${errorMsg}` }
+      const errorMessages: ChatSession['messages'] = [...userMessages, assistantMessage]
+      setChatHistory(errorMessages)
+      const finalSession: ChatSession = {
+        ...updatedSession,
+        messages: errorMessages,
+        result: trimResult(result),
+        updatedAt: new Date().toISOString()
+      }
+      upsertSession(finalSession)
     } finally {
       setLoading(false)
     }
@@ -207,14 +431,30 @@ function App() {
         
         {!sidebarCollapsed && (
           <>
-            <button className="create-app-button">Create new app</button>
+            <button className="create-app-button" onClick={startNewChat}>New chat</button>
             
             <div className="sidebar-section">
               <div className="section-header">
-                <span>APPS</span>
+                <span>CHATS</span>
                 <span className="section-icon">━</span>
               </div>
-              <div className="section-content">No apps yet</div>
+              <div className="section-content">
+                {chatSessions.length === 0 ? (
+                  <div className="section-content">No chats yet</div>
+                ) : (
+                  <div className="dashboard-list">
+                    {chatSessions.map((session) => (
+                      <div
+                        key={session.id}
+                        className={`dashboard-item ${session.id === activeSessionId ? 'active' : ''}`}
+                        onClick={() => selectSession(session.id)}
+                      >
+                        <span className="dashboard-item-title">{session.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             
             <div className="sidebar-section">

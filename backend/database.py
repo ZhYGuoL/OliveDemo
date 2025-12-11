@@ -1,6 +1,6 @@
 """Database layer for schema introspection and SQL execution."""
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from database_adapters import get_database_adapter, DatabaseAdapter
 
@@ -8,21 +8,50 @@ from database_adapters import get_database_adapter, DatabaseAdapter
 load_dotenv()
 
 # Create database adapter instance (singleton pattern)
-_adapter: DatabaseAdapter = None
-_current_database_url: str = None
+_adapter: Optional[DatabaseAdapter] = None
+_current_database_url: Optional[str] = None
+
+def set_database_url(database_url: str) -> None:
+    """Set the database URL and reset the adapter to use the new connection."""
+    global _adapter, _current_database_url
+    _current_database_url = database_url
+    _adapter = None  # Reset adapter to force recreation with new URL
+    # Also set in environment for compatibility
+    os.environ["DATABASE_URL"] = database_url
+
+def clear_database_connection() -> None:
+    """Clear the database connection (disconnect)."""
+    global _adapter, _current_database_url
+    _adapter = None
+    _current_database_url = None
+    # Remove from environment
+    if "DATABASE_URL" in os.environ:
+        del os.environ["DATABASE_URL"]
+
+def get_current_database_url() -> Optional[str]:
+    """Get the currently connected database URL."""
+    return _current_database_url
 
 def _get_adapter() -> DatabaseAdapter:
     """Get or create the database adapter instance."""
     global _adapter, _current_database_url
-    # Read DATABASE_URL at runtime, not import time
-    database_url = os.getenv("DATABASE_URL", None)
     
-    # Reset adapter if DATABASE_URL changed or adapter doesn't exist
+    # Use stored connection URL as source of truth, fallback to environment variable
+    database_url = _current_database_url
+    if database_url is None:
+        database_url = os.getenv("DATABASE_URL", None)
+        if database_url:
+            _current_database_url = database_url
+    
+    # If no connection URL is available, raise error
+    if not database_url:
+        raise RuntimeError("No database connected. Please connect a data source first.")
+    
+    # Create adapter if it doesn't exist or if URL changed
     if _adapter is None or _current_database_url != database_url:
-        if not database_url:
-            raise RuntimeError("No database connected. Please connect a data source first.")
         _adapter = get_database_adapter(database_url=database_url, db_path=None)
         _current_database_url = database_url
+    
     return _adapter
 
 def get_schema_ddl() -> str:
