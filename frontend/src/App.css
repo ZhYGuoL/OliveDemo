@@ -433,6 +433,39 @@
   color: #9ca3af;
 }
 
+.table-tags-indicator {
+  position: absolute;
+  bottom: 3.5rem;
+  left: 1.5rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.table-tags-label {
+  font-weight: 500;
+  color: #374151;
+}
+
+.table-tag {
+  background-color: #dbeafe;
+  color: #1e40af;
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  font-weight: 500;
+  font-size: 0.7rem;
+}
+
+.table-tags-hint {
+  margin-left: auto;
+  color: #9ca3af;
+  font-size: 0.7rem;
+}
+
 .prompt-meta {
   position: absolute;
   bottom: 1rem;

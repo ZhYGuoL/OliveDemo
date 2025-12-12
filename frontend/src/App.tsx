@@ -5,6 +5,7 @@ import { ChatSidebar } from './components/ChatSidebar'
 import { DataSourceModal } from './components/DataSourceModal'
 import { ConnectionForm } from './components/ConnectionForm'
 import { DatabaseInfo } from './components/DatabaseInfo'
+import { TableTagIndicator } from './components/TableTagIndicator'
 import { apiEndpoint } from './config'
 import { DashboardSpec } from './types/dashboard'
 
@@ -38,6 +39,7 @@ function App() {
   const [dbConnected, setDbConnected] = useState(false)
   const [databaseType, setDatabaseType] = useState<string | null>(null)
   const [databaseName, setDatabaseName] = useState<string | null>(null)
+  const [availableTables, setAvailableTables] = useState<string[]>([])
   const [showChat, setShowChat] = useState(false)
   const [chatHistory, setChatHistory] = useState<Array<{role: 'user' | 'assistant', content: string}>>([])
   const [chatInput, setChatInput] = useState('')
@@ -356,15 +358,29 @@ function App() {
         setDbConnected(data.connected || false)
         setDatabaseType(data.database_type || null)
         setDatabaseName(data.database_name || null)
+        
+        // Extract table names from schema DDL
+        if (data.schema) {
+          const tableMatches = data.schema.match(/CREATE TABLE\s+(?:"?)(\w+)(?:"?)/gi) || []
+          const tables = tableMatches.map((match: string) => {
+            const tableMatch = match.match(/CREATE TABLE\s+(?:"?)(\w+)(?:"?)/i)
+            return tableMatch ? tableMatch[1].toLowerCase() : null
+          }).filter(Boolean) as string[]
+          setAvailableTables(tables)
+        } else {
+          setAvailableTables([])
+        }
       } else {
         setDbConnected(false)
         setDatabaseType(null)
         setDatabaseName(null)
+        setAvailableTables([])
       }
     } catch (err) {
       setDbConnected(false)
       setDatabaseType(null)
       setDatabaseName(null)
+      setAvailableTables([])
     }
   }
 
@@ -719,11 +735,12 @@ function App() {
                   <textarea
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="Build a table for me to see all my users."
+                    placeholder="Build a table for me to see all my users. Use @table_name to reference specific tables."
                     disabled={loading}
                     className="prompt-input-large"
                     rows={4}
                   />
+                  <TableTagIndicator prompt={prompt} availableTables={availableTables} />
                   <div className="prompt-meta">
                     {dbConnected ? (
                       <>

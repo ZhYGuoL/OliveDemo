@@ -177,10 +177,23 @@ async def generate_dashboard(request: GenerateDashboardRequest):
         # Get database schema
         db_schema_ddl = database.get_schema_ddl()
         
+        # Parse table references from prompt (e.g., @users, @orders)
+        from prompt_utils import parse_table_references, filter_schema_by_tables
+        referenced_tables = parse_table_references(request.prompt)
+        
+        # Filter schema to only include referenced tables if any are specified
+        if referenced_tables:
+            logger.info(f"User referenced tables: {referenced_tables}")
+            db_schema_ddl = filter_schema_by_tables(db_schema_ddl, referenced_tables)
+            # If filtering resulted in empty schema, warn but continue with full schema
+            if not db_schema_ddl.strip() or "CREATE TABLE" not in db_schema_ddl:
+                logger.warning(f"Filtered schema is empty for tables {referenced_tables}, using full schema")
+                db_schema_ddl = database.get_schema_ddl()
+        
         # Generate Spec via LLM
         try:
             logger.info(f"Generating dashboard for prompt: {request.prompt[:100]}")
-            spec = llm_service.generate_dashboard(request.prompt, db_schema_ddl)
+            spec = llm_service.generate_dashboard(request.prompt, db_schema_ddl, referenced_tables)
             logger.info("Successfully generated dashboard spec")
         except ValueError as e:
             logger.error(f"JSON parsing error: {str(e)}")

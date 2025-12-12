@@ -59,17 +59,23 @@ def build_system_prompt() -> str:
     7. Return ONLY valid JSON. No markdown, no backticks, no commentary.
     """
 
-def call_llm(user_prompt: str, db_schema_ddl: str) -> str:
+def call_llm(user_prompt: str, db_schema_ddl: str, referenced_tables: set = None) -> str:
     """
     Call the local Ollama LLM API.
     """
     system_prompt = build_system_prompt()
     
+    # Build context about referenced tables
+    table_context = ""
+    if referenced_tables:
+        table_list = ", ".join(sorted(referenced_tables))
+        table_context = f"\nNOTE: The user specifically referenced these tables: {table_list}. Focus on these tables in your queries.\n"
+    
     full_prompt = f"""{system_prompt}
 
 Database Schema:
 {db_schema_ddl}
-
+{table_context}
 User Request:
 {user_prompt}
 
@@ -129,9 +135,9 @@ def parse_llm_response(response_text: str) -> Dict[str, Any]:
             "dataSources": []
         }
 
-def generate_dashboard(user_prompt: str, db_schema_ddl: str) -> Dict[str, Any]:
+def generate_dashboard(user_prompt: str, db_schema_ddl: str, referenced_tables: set = None) -> Dict[str, Any]:
     """
     Generate dashboard spec.
     """
-    response_text = call_llm(user_prompt, db_schema_ddl)
+    response_text = call_llm(user_prompt, db_schema_ddl, referenced_tables)
     return parse_llm_response(response_text)
