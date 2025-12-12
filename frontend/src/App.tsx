@@ -359,6 +359,30 @@ function App() {
     }
   }
 
+  const handleDisconnect = async () => {
+    try {
+      const response = await fetch(apiEndpoint('disconnect'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || 'Failed to disconnect')
+      }
+
+      await response.json()
+      setDbConnected(false)
+      setResult(null) // Clear any existing dashboard results
+      setError(null)
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to disconnect'
+      setError(errorMsg)
+    }
+  }
+
   const handleDataSourceSelect = (type: 'postgresql' | 'supabase' | 'mysql') => {
     setSelectedDataSource(type)
     setShowDataSourceModal(false)
@@ -694,6 +718,16 @@ function App() {
                       <span className="db-icon">🗄️</span>
                       {dbConnected ? 'DB Connected' : 'No DB Connected'}
                     </span>
+                    {dbConnected && (
+                      <button
+                        type="button"
+                        onClick={handleDisconnect}
+                        className="disconnect-button"
+                        title="Disconnect database"
+                      >
+                        Disconnect
+                      </button>
+                    )}
                   </div>
                   <button
                     type="submit"

@@ -463,6 +463,23 @@
   font-size: 0.9rem;
 }
 
+.disconnect-button {
+  padding: 0.4rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.disconnect-button:hover {
+  background-color: #fecaca;
+  border-color: #f87171;
+}
+
 .submit-button {
   position: absolute;
   bottom: 1rem;

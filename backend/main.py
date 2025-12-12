@@ -116,6 +116,20 @@ async def connect_database(request: ConnectRequest):
             detail=f"Failed to connect to database: {str(e)}"
         )
 
+@app.post("/disconnect")
+async def disconnect_database():
+    """Disconnect from the current database."""
+    try:
+        database.clear_database_connection()
+        logger.info("Database disconnected successfully")
+        return {"status": "disconnected", "message": "Database disconnected successfully"}
+    except Exception as e:
+        logger.error(f"Disconnect error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to disconnect: {str(e)}"
+        )
+
 @app.get("/schema")
 async def get_schema():
     """Get database schema to verify connection."""
