@@ -2,6 +2,7 @@ import React from 'react'
 
 interface DatabaseInfoProps {
   databaseType: string | null
+  databaseName: string | null
 }
 
 const getDatabaseIcon = (type: string | null): string => {
@@ -30,7 +31,7 @@ const getDatabaseColor = (type: string | null): string => {
   }
 }
 
-export const DatabaseInfo: React.FC<DatabaseInfoProps> = ({ databaseType }) => {
+export const DatabaseInfo: React.FC<DatabaseInfoProps> = ({ databaseType, databaseName }) => {
   if (!databaseType) return null
 
   return (
@@ -51,6 +52,12 @@ export const DatabaseInfo: React.FC<DatabaseInfoProps> = ({ databaseType }) => {
     >
       <span style={{ fontSize: '0.9rem' }}>{getDatabaseIcon(databaseType)}</span>
       <span>{databaseType}</span>
+      {databaseName && (
+        <>
+          <span style={{ color: '#6b7280', fontSize: '0.75rem' }}>•</span>
+          <span style={{ color: '#6b7280', fontWeight: 400 }}>{databaseName}</span>
+        </>
+      )}
     </div>
   )
 }

@@ -37,6 +37,7 @@ function App() {
   const [result, setResult] = useState<DashboardResponse | null>(null)
   const [dbConnected, setDbConnected] = useState(false)
   const [databaseType, setDatabaseType] = useState<string | null>(null)
+  const [databaseName, setDatabaseName] = useState<string | null>(null)
   const [showChat, setShowChat] = useState(false)
   const [chatHistory, setChatHistory] = useState<Array<{role: 'user' | 'assistant', content: string}>>([])
   const [chatInput, setChatInput] = useState('')
@@ -354,13 +355,16 @@ function App() {
         const data = await schemaResponse.json()
         setDbConnected(data.connected || false)
         setDatabaseType(data.database_type || null)
+        setDatabaseName(data.database_name || null)
       } else {
         setDbConnected(false)
         setDatabaseType(null)
+        setDatabaseName(null)
       }
     } catch (err) {
       setDbConnected(false)
       setDatabaseType(null)
+      setDatabaseName(null)
     }
   }
 
@@ -381,6 +385,7 @@ function App() {
       await response.json()
       setDbConnected(false)
       setDatabaseType(null)
+      setDatabaseName(null)
       setResult(null) // Clear any existing dashboard results
       setError(null)
     } catch (err) {
@@ -722,7 +727,7 @@ function App() {
                   <div className="prompt-meta">
                     {dbConnected ? (
                       <>
-                        <DatabaseInfo databaseType={databaseType} />
+                        <DatabaseInfo databaseType={databaseType} databaseName={databaseName} />
                         <button
                           type="button"
                           onClick={handleDisconnect}

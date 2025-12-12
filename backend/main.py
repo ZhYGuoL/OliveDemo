@@ -137,15 +137,16 @@ async def get_schema():
         # Check if database is connected
         current_url = database.get_current_database_url()
         if not current_url:
-            return {"schema": "", "connected": False, "database_type": None}
+            return {"schema": "", "connected": False, "database_type": None, "database_name": None}
         
         schema = database.get_schema_ddl()
         database_type = database.get_database_type()
-        return {"schema": schema, "connected": True, "database_type": database_type}
+        database_name = database.get_database_name()
+        return {"schema": schema, "connected": True, "database_type": database_type, "database_name": database_name}
     except RuntimeError as e:
         # No database connected
         logger.info(f"No database connected: {str(e)}")
-        return {"schema": "", "connected": False, "database_type": None}
+        return {"schema": "", "connected": False, "database_type": None, "database_name": None}
     except Exception as e:
         logger.error(f"Schema retrieval error: {str(e)}", exc_info=True)
         raise HTTPException(

@@ -52,6 +52,26 @@ def get_database_type() -> Optional[str]:
     except Exception:
         return None
 
+def get_database_name() -> Optional[str]:
+    """Get the name of the currently connected database."""
+    try:
+        from urllib.parse import urlparse
+        url = _current_database_url or os.getenv("DATABASE_URL", "")
+        if not url:
+            return None
+        
+        parsed = urlparse(url)
+        # Database name is typically the path without the leading slash
+        db_name = parsed.path.lstrip('/')
+        # Remove any query parameters or fragments
+        if '?' in db_name:
+            db_name = db_name.split('?')[0]
+        if db_name:
+            return db_name
+        return None
+    except Exception:
+        return None
+
 def _get_adapter() -> DatabaseAdapter:
     """Get or create the database adapter instance."""
     global _adapter, _current_database_url
