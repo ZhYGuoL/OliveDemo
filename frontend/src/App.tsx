@@ -4,6 +4,7 @@ import { SchemaRenderer } from './components/SchemaRenderer'
 import { ChatSidebar } from './components/ChatSidebar'
 import { DataSourceModal } from './components/DataSourceModal'
 import { ConnectionForm } from './components/ConnectionForm'
+import { DatabaseInfo } from './components/DatabaseInfo'
 import { apiEndpoint } from './config'
 import { DashboardSpec } from './types/dashboard'
 
@@ -35,6 +36,7 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<DashboardResponse | null>(null)
   const [dbConnected, setDbConnected] = useState(false)
+  const [databaseType, setDatabaseType] = useState<string | null>(null)
   const [showChat, setShowChat] = useState(false)
   const [chatHistory, setChatHistory] = useState<Array<{role: 'user' | 'assistant', content: string}>>([])
   const [chatInput, setChatInput] = useState('')
@@ -351,11 +353,14 @@ function App() {
       if (schemaResponse.ok) {
         const data = await schemaResponse.json()
         setDbConnected(data.connected || false)
+        setDatabaseType(data.database_type || null)
       } else {
         setDbConnected(false)
+        setDatabaseType(null)
       }
     } catch (err) {
       setDbConnected(false)
+      setDatabaseType(null)
     }
   }
 
@@ -375,6 +380,7 @@ function App() {
 
       await response.json()
       setDbConnected(false)
+      setDatabaseType(null)
       setResult(null) // Clear any existing dashboard results
       setError(null)
     } catch (err) {
@@ -714,19 +720,23 @@ function App() {
                     rows={4}
                   />
                   <div className="prompt-meta">
-                    <span className={`db-status ${dbConnected ? 'connected' : 'disconnected'}`}>
-                      <span className="db-icon">🗄️</span>
-                      {dbConnected ? 'DB Connected' : 'No DB Connected'}
-                    </span>
-                    {dbConnected && (
-                      <button
-                        type="button"
-                        onClick={handleDisconnect}
-                        className="disconnect-button"
-                        title="Disconnect database"
-                      >
-                        Disconnect
-                      </button>
+                    {dbConnected ? (
+                      <>
+                        <DatabaseInfo databaseType={databaseType} />
+                        <button
+                          type="button"
+                          onClick={handleDisconnect}
+                          className="disconnect-button"
+                          title="Disconnect database"
+                        >
+                          Disconnect
+                        </button>
+                      </>
+                    ) : (
+                      <span className={`db-status ${dbConnected ? 'connected' : 'disconnected'}`}>
+                        <span className="db-icon">🗄️</span>
+                        No DB Connected
+                      </span>
                     )}
                   </div>
                   <button

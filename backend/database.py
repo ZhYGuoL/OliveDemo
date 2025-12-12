@@ -32,6 +32,26 @@ def get_current_database_url() -> Optional[str]:
     """Get the currently connected database URL."""
     return _current_database_url
 
+def get_database_type() -> Optional[str]:
+    """Get the type of the currently connected database."""
+    try:
+        adapter = _get_adapter()
+        # Check the adapter type
+        adapter_type = type(adapter).__name__
+        if 'PostgreSQL' in adapter_type:
+            # Check if it's Supabase by looking at the URL
+            url = _current_database_url or os.getenv("DATABASE_URL", "")
+            if 'supabase' in url.lower():
+                return 'Supabase'
+            return 'PostgreSQL'
+        elif 'MySQL' in adapter_type:
+            return 'MySQL'
+        return 'Unknown'
+    except RuntimeError:
+        return None
+    except Exception:
+        return None
+
 def _get_adapter() -> DatabaseAdapter:
     """Get or create the database adapter instance."""
     global _adapter, _current_database_url
