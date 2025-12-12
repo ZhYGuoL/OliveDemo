@@ -440,13 +440,48 @@ function App() {
       
       // Merge new widgets and data sources with existing result if available
       if (result && result.spec) {
+        // Generate a unique suffix for this batch of additions to prevent ID collisions
+        const batchSuffix = `_${Date.now().toString(36)}`
+        
+        // Rewrite IDs in the new spec and data to be unique
+        const remappedNewSpec = { ...data.spec }
+        const remappedNewData: Record<string, any[]> = {}
+        
+        // Map old source ID -> new unique source ID
+        const sourceIdMap: Record<string, string> = {}
+        
+        // 1. Remap Data Sources
+        remappedNewSpec.dataSources = data.spec.dataSources.map(ds => {
+          const newId = `${ds.id}${batchSuffix}`
+          sourceIdMap[ds.id] = newId
+          
+          // Move data to new key
+          if (data.data[ds.id]) {
+            remappedNewData[newId] = data.data[ds.id]
+          }
+          
+          return { ...ds, id: newId }
+        })
+        
+        // 2. Remap Widgets
+        remappedNewSpec.widgets = data.spec.widgets.map(w => {
+          return {
+            ...w,
+            id: `${w.id}${batchSuffix}`,
+            dataSource: w.dataSource ? sourceIdMap[w.dataSource] : undefined,
+            // Also remap targetWidgetIds for filters if they exist in this batch
+            targetWidgetIds: w.targetWidgetIds?.map(tid => `${tid}${batchSuffix}`)
+          }
+        })
+
         const mergedSpec: DashboardSpec = {
           ...result.spec,
-          widgets: [...result.spec.widgets, ...data.spec.widgets],
-          dataSources: [...result.spec.dataSources, ...data.spec.dataSources]
+          widgets: [...result.spec.widgets, ...remappedNewSpec.widgets],
+          dataSources: [...result.spec.dataSources, ...remappedNewSpec.dataSources]
         }
         
-        const mergedData = { ...result.data, ...data.data }
+        // Merge data: simply spread the remapped new data into the existing data
+        const mergedData = { ...result.data, ...remappedNewData }
         
         const mergedResult = {
           spec: mergedSpec,

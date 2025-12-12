@@ -69,6 +69,19 @@ export function ConnectionForm({ type, isOpen, onConnect, onCancel }: Connection
     }
   }
 
+  const getHelpText = () => {
+    switch (type) {
+      case 'postgresql':
+        return 'Use localhost for local connections, or your IP address for remote access'
+      case 'supabase':
+        return 'Get your connection string from Supabase dashboard > Settings > Database'
+      case 'mysql':
+        return 'Use localhost for local connections, or your IP address for remote access'
+      default:
+        return ''
+    }
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onCancel}>
       <DialogContent className="sm:max-w-[600px]">
@@ -95,6 +108,15 @@ export function ConnectionForm({ type, isOpen, onConnect, onCancel }: Connection
               disabled={loading}
               className="font-mono text-sm"
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              {getHelpText()}
+            </p>
+            {type === 'postgresql' && connectionString.includes('localhost') && (
+              <div className="text-xs text-muted-foreground mt-1 p-2 bg-muted rounded-md">
+                <strong>Note:</strong> Using <code>localhost</code> means only this computer can access the database. 
+                For remote access, replace <code>localhost</code> with your computer's IP address (e.g., <code>192.168.1.100</code>).
+              </div>
+            )}
           </div>
 
           {error && (
