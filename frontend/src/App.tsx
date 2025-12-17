@@ -5,7 +5,8 @@ import { ChatSidebar } from './components/ChatSidebar'
 import { DataSourceModal } from './components/DataSourceModal'
 import { ConnectionForm } from './components/ConnectionForm'
 import { DatabaseInfo } from './components/DatabaseInfo'
-import { TableTagIndicator } from './components/TableTagIndicator'
+import { PromptEditor } from './components/tiptap/PromptEditor'
+import { DashboardSuggestions } from './components/DashboardSuggestions'
 import { apiEndpoint } from './config'
 import { DashboardSpec } from './types/dashboard'
 
@@ -194,12 +195,17 @@ function App() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!prompt.trim()) return
+    
+    // TipTap returns plain text with @mentions already formatted as "@tablename"
+    // No special regex cleaning needed for react-mentions markup
+    const cleanPrompt = prompt.trim()
+    
+    if (!cleanPrompt) return
 
     setLoading(true)
     setError(null)
 
-    const userMessage = prompt.trim()
+    const userMessage = cleanPrompt
     let sessionMaybe = findSession(activeSessionId)
     if (!sessionMaybe) {
       sessionMaybe = createSession(userMessage.slice(0, 40) || 'New chat')
@@ -452,13 +458,16 @@ function App() {
   }
 
   const handleChatMessage = async (message: string) => {
+    // TipTap clean text
+    const cleanMessage = message.trim()
+
     setLoading(true)
     let sessionMaybe = findSession(activeSessionId)
     if (!sessionMaybe) {
-      sessionMaybe = createSession(message.slice(0, 40) || 'New chat')
+      sessionMaybe = createSession(cleanMessage.slice(0, 40) || 'New chat')
     }
     const session: ChatSession = sessionMaybe
-    const userMessages: ChatSession['messages'] = [...session.messages, { role: 'user' as const, content: message }]
+    const userMessages: ChatSession['messages'] = [...session.messages, { role: 'user' as const, content: cleanMessage }]
     const updatedSession: ChatSession = {
       ...session,
       messages: userMessages,
@@ -474,7 +483,7 @@ function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ prompt: message }),
+        body: JSON.stringify({ prompt: cleanMessage }),
       })
 
       if (!response.ok) {
@@ -546,7 +555,7 @@ function App() {
         setChatHistory(finalMessages)
         const dashboardSnapshot: DashboardSnapshot = {
           id: `dash-${Date.now()}`,
-          prompt: message,
+          prompt: cleanMessage,
           result: trimResult(mergedResult)!,
           createdAt: new Date().toISOString(),
         }
@@ -565,7 +574,7 @@ function App() {
         setChatHistory(finalMessages)
         const dashboardSnapshot: DashboardSnapshot = {
           id: `dash-${Date.now()}`,
-          prompt: message,
+          prompt: cleanMessage,
           result: trimResult(data)!,
           createdAt: new Date().toISOString(),
         }
@@ -732,15 +741,13 @@ function App() {
 
               <form onSubmit={handleSubmit} className="prompt-form">
                 <div className="prompt-input-wrapper">
-                  <textarea
+                  <PromptEditor
                     value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="Build a table for me to see all my users. Use @table_name to reference specific tables."
+                    onChange={setPrompt}
+                    placeholder="Build a table for me to see all my users. Use @ to see available tables."
                     disabled={loading}
-                    className="prompt-input-large"
-                    rows={4}
+                    availableTables={availableTables}
                   />
-                  <TableTagIndicator prompt={prompt} availableTables={availableTables} />
                   <div className="prompt-meta">
                     {dbConnected ? (
                       <>
@@ -782,6 +789,16 @@ function App() {
                     Connect a data source
                   </button>
                 </div>
+              )}
+
+              {dbConnected && (
+                <DashboardSuggestions
+                  onSelectSuggestion={(prompt) => {
+                    setPrompt(prompt)
+                    // Optionally auto-submit, or just populate the input
+                  }}
+                  dbConnected={dbConnected}
+                />
               )}
             </>
           )}

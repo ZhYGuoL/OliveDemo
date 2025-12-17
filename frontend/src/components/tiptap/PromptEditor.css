@@ -1,0 +1,81 @@
+/* Editor Wrapper */
+.prompt-editor-wrapper {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background-color: #ffffff;
+  transition: box-shadow 0.2s, border-color 0.2s;
+  overflow: hidden;
+  cursor: text; /* Make the whole box look clickable */
+}
+
+.prompt-editor-wrapper:focus-within {
+  border-color: #0f4a28;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* The actual editable area (ProseMirror) */
+.prompt-editor-input {
+  padding: 1.5rem;
+  min-height: 130px;
+  outline: none;
+  font-family: inherit;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: #111827;
+}
+
+/* Placeholder */
+.prompt-editor-input p.is-editor-empty:first-child::before {
+  color: #9ca3af;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Mention Pill Style */
+.mention-pill {
+  color: #1e40af;
+  background-color: #dbeafe;
+  border-radius: 6px;
+  padding: 0.1rem 0.3rem;
+  box-decoration-break: clone;
+  font-weight: 500;
+  display: inline-block; /* Helps with pill shape */
+}
+
+/* Suggestion Dropdown */
+.mention-dropdown {
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  padding: 0.2rem;
+  min-width: 150px;
+}
+
+.mention-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.9rem;
+  color: #374151;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.mention-item.is-selected {
+  background-color: #f3f4f6;
+  color: #0f4a28;
+}
+
+.mention-item.is-empty {
+  color: #9ca3af;
+  cursor: default;
+}
+
