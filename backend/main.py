@@ -203,16 +203,32 @@ async def get_dashboard_suggestions():
         current_url = database.get_current_database_url()
         if not current_url:
             return {"suggestions": []}
-        
+
         schema = database.get_schema_ddl()
-        
+
         # Extract table names from schema
         import re
         table_matches = re.findall(r'CREATE TABLE\s+(?:"?)(\w+)(?:"?)', schema, re.IGNORECASE)
         table_names = [t.lower() for t in table_matches] if table_matches else []
-        
+
+        # Check cache first (hash schema to use as cache key)
+        import hashlib
+        schema_hash = hashlib.md5(schema.encode()).hexdigest()
+
+        if not hasattr(app.state, 'suggestions_cache'):
+            app.state.suggestions_cache = {}
+
+        # Return cached suggestions if available
+        if schema_hash in app.state.suggestions_cache:
+            logger.info("Returning cached suggestions")
+            return {"suggestions": app.state.suggestions_cache[schema_hash]}
+
         # Generate suggestions using LLM
+        logger.info("Generating new suggestions with LLM")
         suggestions = llm_service.generate_dashboard_suggestions(schema, table_names)
+
+        # Cache the results
+        app.state.suggestions_cache[schema_hash] = suggestions
         
         return {"suggestions": suggestions}
     except RuntimeError as e:

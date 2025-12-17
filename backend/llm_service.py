@@ -155,6 +155,8 @@ For each suggestion, provide:
 - A list of 3-4 key features/capabilities
 - A natural language prompt that could be used to generate this dashboard
 
+IMPORTANT: In the prompt field, prefix all table names with @ symbol (e.g., @users, @orders, @products). This allows them to be recognized as table references in the interface.
+
 Focus on practical, actionable dashboards that provide real business value. Consider common use cases like:
 - User management and authentication
 - E-commerce analytics
@@ -172,7 +174,7 @@ Return ONLY a valid JSON array of exactly 4 objects with this structure:
       "Feature 2",
       "Feature 3"
     ],
-    "prompt": "Natural language prompt to generate this dashboard"
+    "prompt": "Natural language prompt with @table references (e.g., 'Show me all records from @users table')"
   }
 ]
 
@@ -201,7 +203,8 @@ Generate exactly 4 dashboard suggestions as a JSON array.
                 "prompt": full_prompt,
                 "stream": False,
                 "options": {
-                    "temperature": 0.7,  # Higher temperature for more creative suggestions
+                    "temperature": 0.3,  # Lower temperature for faster, more consistent suggestions
+                    "num_predict": 2000,  # Limit max tokens for faster generation
                 }
             },
             timeout=60.0
@@ -236,61 +239,99 @@ Generate exactly 4 dashboard suggestions as a JSON array.
 
 def get_default_suggestions(table_names: list = None) -> list:
     """Return default suggestions if LLM fails. Always returns exactly 4 suggestions."""
-    defaults = [
-        {
-            "title": "Data Overview Dashboard",
-            "description": "Get a comprehensive overview of your data with key metrics and visualizations.",
-            "features": [
-                "View total records across all tables",
-                "See data distribution and trends",
-                "Monitor data growth over time"
-            ],
-            "prompt": "Build a dashboard showing an overview of all my data with key metrics and charts"
-        },
-        {
-            "title": "Table Explorer",
-            "description": "Explore and analyze data from your tables with search and filter capabilities.",
-            "features": [
-                "Browse all tables and their data",
-                "Search and filter records",
-                "View table relationships"
-            ],
-            "prompt": "Create a table explorer to view and search through all my database tables"
-        },
-        {
-            "title": "Recent Activity Monitor",
-            "description": "Track and monitor recent changes and activities across your database.",
-            "features": [
-                "View recent record additions",
-                "Monitor update patterns",
-                "Track data changes over time"
-            ],
-            "prompt": "Build a dashboard to monitor recent activity and changes in my database"
-        },
-        {
-            "title": "Quick Stats Summary",
-            "description": "Display key statistics and counts from your most important tables.",
-            "features": [
-                "Show record counts by table",
-                "Display key performance indicators",
-                "Visualize data distribution"
-            ],
-            "prompt": "Create a dashboard with quick statistics and counts from my database tables"
-        }
-    ]
+    # Get first few table names with @ prefix for prompts
+    table_refs = [f"@{t}" for t in (table_names[:3] if table_names else [])]
 
-    # If table names exist, replace the first suggestion with a table-specific one
     if table_names and len(table_names) > 0:
+        # Create table-specific suggestions when we have table names
         table_name = table_names[0]
-        defaults[0] = {
-            "title": f"{table_name.title()} Analytics",
-            "description": f"Analyze and visualize data from the {table_name} table with charts and metrics.",
-            "features": [
-                f"View all {table_name} records",
-                "Create visualizations of key metrics",
-                "Filter and search data"
-            ],
-            "prompt": f"Build a dashboard to analyze and visualize data from the {table_name} table"
-        }
+        table_ref = f"@{table_name}"
+
+        defaults = [
+            {
+                "title": f"{table_name.title()} Analytics",
+                "description": f"Analyze and visualize data from the {table_name} table with charts and metrics.",
+                "features": [
+                    f"View all {table_name} records",
+                    "Create visualizations of key metrics",
+                    "Filter and search data"
+                ],
+                "prompt": f"Build a dashboard to analyze and visualize data from {table_ref}"
+            },
+            {
+                "title": "Data Overview Dashboard",
+                "description": "Get a comprehensive overview of your data with key metrics and visualizations.",
+                "features": [
+                    "View total records across all tables",
+                    "See data distribution and trends",
+                    "Monitor data growth over time"
+                ],
+                "prompt": f"Build a dashboard showing an overview of {' '.join(table_refs)} with key metrics and charts" if table_refs else "Build a dashboard showing an overview of all my data with key metrics and charts"
+            },
+            {
+                "title": "Table Explorer",
+                "description": "Explore and analyze data from your tables with search and filter capabilities.",
+                "features": [
+                    "Browse all tables and their data",
+                    "Search and filter records",
+                    "View table relationships"
+                ],
+                "prompt": f"Create a table to view and search through {table_ref}"
+            },
+            {
+                "title": "Quick Stats Summary",
+                "description": "Display key statistics and counts from your most important tables.",
+                "features": [
+                    "Show record counts by table",
+                    "Display key performance indicators",
+                    "Visualize data distribution"
+                ],
+                "prompt": f"Show me statistics and counts from {' and '.join(table_refs)}" if table_refs else "Create a dashboard with quick statistics and counts from my database tables"
+            }
+        ]
+    else:
+        # Generic defaults when no table names are available
+        defaults = [
+            {
+                "title": "Data Overview Dashboard",
+                "description": "Get a comprehensive overview of your data with key metrics and visualizations.",
+                "features": [
+                    "View total records across all tables",
+                    "See data distribution and trends",
+                    "Monitor data growth over time"
+                ],
+                "prompt": "Build a dashboard showing an overview of all my data with key metrics and charts"
+            },
+            {
+                "title": "Table Explorer",
+                "description": "Explore and analyze data from your tables with search and filter capabilities.",
+                "features": [
+                    "Browse all tables and their data",
+                    "Search and filter records",
+                    "View table relationships"
+                ],
+                "prompt": "Create a table explorer to view and search through all my database tables"
+            },
+            {
+                "title": "Recent Activity Monitor",
+                "description": "Track and monitor recent changes and activities across your database.",
+                "features": [
+                    "View recent record additions",
+                    "Monitor update patterns",
+                    "Track data changes over time"
+                ],
+                "prompt": "Build a dashboard to monitor recent activity and changes in my database"
+            },
+            {
+                "title": "Quick Stats Summary",
+                "description": "Display key statistics and counts from your most important tables.",
+                "features": [
+                    "Show record counts by table",
+                    "Display key performance indicators",
+                    "Visualize data distribution"
+                ],
+                "prompt": "Create a dashboard with quick statistics and counts from my database tables"
+            }
+        ]
 
     return defaults[:4]  # Ensure exactly 4 suggestions
