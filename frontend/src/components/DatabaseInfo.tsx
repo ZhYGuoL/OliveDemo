@@ -1,5 +1,3 @@
-import './DatabaseInfo.css'
-
 interface DatabaseInfoProps {
   databaseType: string | null
   databaseName: string | null

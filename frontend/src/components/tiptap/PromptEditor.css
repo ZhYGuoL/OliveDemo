@@ -80,3 +80,43 @@
   cursor: default;
 }
 
+/* Skeleton Loading */
+.mention-item.skeleton {
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  height: 36px; /* Match approximate item height */
+}
+
+.skeleton-text {
+  height: 14px;
+  width: 70%;
+  background-color: #f3f4f6;
+  border-radius: 4px;
+  animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
+  }
+}
+
+/* Skeleton Loading */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.mention-item-skeleton {
+  width: 90%;
+  height: 24px;
+  margin: 4px auto;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}

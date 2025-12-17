@@ -3,6 +3,7 @@ import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 export interface MentionListProps {
   items: string[]
   command: (props: { id: string; label: string }) => void
+  loading?: boolean
 }
 
 export interface MentionListRef {
@@ -55,6 +56,18 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>((props, 
       return false
     },
   }))
+
+  if (props.loading) {
+    return (
+      <div className="mention-dropdown">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="mention-item skeleton">
+            <div className="skeleton-text" />
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="mention-dropdown">
