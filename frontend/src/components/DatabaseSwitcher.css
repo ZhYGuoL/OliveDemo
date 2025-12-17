@@ -1,6 +1,7 @@
 .database-switcher {
   position: relative;
   display: inline-block;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .switcher-button {
@@ -9,22 +10,28 @@
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   background-color: white;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.9rem;
-  color: #374151;
+  color: #0f172a;
   transition: all 0.2s;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
-.switcher-button:hover, .switcher-button.active {
-  background-color: #f9fafb;
-  border-color: #d1d5db;
+.switcher-button:hover {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.switcher-button.active {
+  border-color: #cbd5e1;
+  background-color: #f8fafc;
 }
 
 .db-name {
-  font-weight: 500;
-  color: #111827;
+  font-weight: 600;
+  color: #0f172a;
   max-width: 150px;
   white-space: nowrap;
   overflow: hidden;
@@ -33,27 +40,46 @@
 
 .switcher-arrow {
   font-size: 0.7rem;
-  color: #6b7280;
+  color: #64748b;
   margin-left: 0.25rem;
+  transition: transform 0.2s;
+}
+
+.switcher-button.active .switcher-arrow {
+  transform: rotate(180deg);
 }
 
 .switcher-dropdown {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 0.5rem);
   left: 0;
-  margin-top: 0.5rem;
   background-color: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  min-width: 220px;
+  min-width: 240px;
   z-index: 50;
-  padding: 0.5rem 0;
+  padding: 0.5rem;
+  animation: slideDown 0.1s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .switcher-list {
-  max-height: 200px;
+  max-height: 240px;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .switcher-item {
@@ -61,23 +87,25 @@
   align-items: center;
   gap: 0.75rem;
   width: 100%;
-  padding: 0.5rem 1rem;
+  padding: 0.625rem 0.75rem;
   background: none;
   border: none;
+  border-radius: 6px;
   text-align: left;
   cursor: pointer;
   font-size: 0.9rem;
-  color: #374151;
-  transition: background-color 0.2s;
+  color: #334155;
+  transition: all 0.2s;
 }
 
 .switcher-item:hover {
-  background-color: #f3f4f6;
+  background-color: #f1f5f9;
 }
 
 .switcher-item.active {
-  background-color: #f0fdf4;
-  color: #0f4a28;
+  background-color: #f1f5f9;
+  color: #0f172a;
+  font-weight: 600;
 }
 
 .switcher-item-name {
@@ -89,14 +117,14 @@
 }
 
 .check-icon {
-  font-size: 0.8rem;
-  color: #0f4a28;
+  font-size: 0.9rem;
+  color: #0f172a;
 }
 
 .switcher-divider {
   height: 1px;
-  background-color: #e5e7eb;
-  margin: 0.5rem 0;
+  background-color: #e2e8f0;
+  margin: 0.5rem -0.5rem;
 }
 
 .add-source-button {
@@ -104,26 +132,46 @@
   align-items: center;
   gap: 0.75rem;
   width: 100%;
-  padding: 0.5rem 1rem;
+  padding: 0.625rem 0.75rem;
   background: none;
   border: none;
+  border-radius: 6px;
   text-align: left;
   cursor: pointer;
   font-size: 0.9rem;
-  color: #0f4a28;
+  color: #166534;
   font-weight: 500;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
 }
 
 .add-source-button:hover {
   background-color: #f0fdf4;
+  color: #15803d;
 }
 
 .plus-icon {
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   font-weight: 400;
-  width: 16px;
+  line-height: 1;
   display: flex;
+  align-items: center;
   justify-content: center;
 }
 
+/* Custom scrollbar for the list */
+.switcher-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.switcher-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.switcher-list::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 2px;
+}
+
+.switcher-list::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
