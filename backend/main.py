@@ -154,6 +154,35 @@ async def get_schema():
             detail=f"Failed to retrieve schema: {str(e)}"
         )
 
+@app.get("/suggestions")
+async def get_dashboard_suggestions():
+    """Get dashboard suggestions based on the connected database schema."""
+    try:
+        # Check if database is connected
+        current_url = database.get_current_database_url()
+        if not current_url:
+            return {"suggestions": []}
+        
+        schema = database.get_schema_ddl()
+        
+        # Extract table names from schema
+        import re
+        table_matches = re.findall(r'CREATE TABLE\s+(?:"?)(\w+)(?:"?)', schema, re.IGNORECASE)
+        table_names = [t.lower() for t in table_matches] if table_matches else []
+        
+        # Generate suggestions using LLM
+        suggestions = llm_service.generate_dashboard_suggestions(schema, table_names)
+        
+        return {"suggestions": suggestions}
+    except RuntimeError as e:
+        # No database connected
+        logger.info(f"No database connected for suggestions: {str(e)}")
+        return {"suggestions": []}
+    except Exception as e:
+        logger.error(f"Failed to generate suggestions: {str(e)}", exc_info=True)
+        # Return empty suggestions on error rather than failing
+        return {"suggestions": []}
+
 @app.post("/disconnect")
 async def disconnect_database():
     """Disconnect from the current database."""

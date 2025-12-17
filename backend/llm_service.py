@@ -141,3 +141,136 @@ def generate_dashboard(user_prompt: str, db_schema_ddl: str, referenced_tables: 
     """
     response_text = call_llm(user_prompt, db_schema_ddl, referenced_tables)
     return parse_llm_response(response_text)
+
+def generate_dashboard_suggestions(db_schema_ddl: str, table_names: list = None) -> list:
+    """
+    Generate dashboard suggestions based on database schema.
+    Returns a list of suggestion objects with title, description, and prompt.
+    """
+    system_prompt = """You are an expert data analyst. Based on the provided database schema, generate 4-6 relevant dashboard suggestions that would be useful for this database.
+
+For each suggestion, provide:
+- A clear, descriptive title (e.g., "User Authentication and Session Monitor")
+- A detailed description explaining what the dashboard does and who would use it
+- A list of 3-4 key features/capabilities
+- A natural language prompt that could be used to generate this dashboard
+
+Focus on practical, actionable dashboards that provide real business value. Consider common use cases like:
+- User management and authentication
+- E-commerce analytics
+- Content management
+- Analytics and reporting
+- Security and monitoring
+
+Return ONLY a valid JSON array of objects with this structure:
+[
+  {
+    "title": "Dashboard Title",
+    "description": "Detailed description of what this dashboard does and who would use it.",
+    "features": [
+      "Feature 1",
+      "Feature 2",
+      "Feature 3"
+    ],
+    "prompt": "Natural language prompt to generate this dashboard"
+  }
+]
+
+Return ONLY the JSON array. No markdown, no backticks, no commentary."""
+
+    # Build context about tables
+    table_context = ""
+    if table_names:
+        table_list = ", ".join(table_names)
+        table_context = f"\n\nAvailable tables: {table_list}\nFocus your suggestions on these tables and their relationships.\n"
+    
+    full_prompt = f"""{system_prompt}
+
+Database Schema:
+{db_schema_ddl}
+{table_context}
+
+Generate 4-6 dashboard suggestions as a JSON array.
+"""
+
+    try:
+        response = httpx.post(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": full_prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.7,  # Higher temperature for more creative suggestions
+                }
+            },
+            timeout=60.0
+        )
+        response.raise_for_status()
+        result = response.json()
+        response_text = result.get("response", "")
+        
+        # Parse JSON array from response
+        import re
+        start_idx = response_text.find("[")
+        end_idx = response_text.rfind("]")
+        
+        if start_idx == -1 or end_idx == -1:
+            logger.warning("No JSON array found in suggestions response, returning defaults")
+            return get_default_suggestions(table_names)
+        
+        json_str = response_text[start_idx:end_idx + 1]
+        json_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', json_str)
+        
+        suggestions = json.loads(json_str)
+        
+        # Validate and ensure we have suggestions
+        if not isinstance(suggestions, list) or len(suggestions) == 0:
+            return get_default_suggestions(table_names)
+        
+        return suggestions[:6]  # Limit to 6 suggestions
+        
+    except Exception as e:
+        logger.error(f"Failed to generate suggestions: {e}")
+        return get_default_suggestions(table_names)
+
+def get_default_suggestions(table_names: list = None) -> list:
+    """Return default suggestions if LLM fails."""
+    defaults = [
+        {
+            "title": "Data Overview Dashboard",
+            "description": "Get a comprehensive overview of your data with key metrics and visualizations.",
+            "features": [
+                "View total records across all tables",
+                "See data distribution and trends",
+                "Monitor data growth over time"
+            ],
+            "prompt": "Build a dashboard showing an overview of all my data with key metrics and charts"
+        },
+        {
+            "title": "Table Explorer",
+            "description": "Explore and analyze data from your tables with search and filter capabilities.",
+            "features": [
+                "Browse all tables and their data",
+                "Search and filter records",
+                "View table relationships"
+            ],
+            "prompt": "Create a table explorer to view and search through all my database tables"
+        }
+    ]
+    
+    if table_names and len(table_names) > 0:
+        # Add a table-specific suggestion
+        table_name = table_names[0]
+        defaults.insert(0, {
+            "title": f"{table_name.title()} Analytics",
+            "description": f"Analyze and visualize data from the {table_name} table with charts and metrics.",
+            "features": [
+                f"View all {table_name} records",
+                "Create visualizations of key metrics",
+                "Filter and search data"
+            ],
+            "prompt": f"Build a dashboard to analyze and visualize data from the {table_name} table"
+        })
+    
+    return defaults

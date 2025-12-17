@@ -1,0 +1,166 @@
+.dashboard-suggestions {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+}
+
+.suggestions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.suggestions-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.sparkle-icon {
+  font-size: 1rem;
+  color: #6b7280;
+}
+
+.more-ideas-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #1a3d2f;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.more-ideas-button:hover {
+  background-color: #0f4a28;
+}
+
+.lightbulb-icon {
+  font-size: 0.9rem;
+}
+
+.suggestions-loading {
+  text-align: center;
+  padding: 3rem;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.suggestions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+}
+
+.suggestion-card {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 380px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.2s, border-color 0.2s, transform 0.1s;
+}
+
+.suggestion-card:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  border-color: #d1d5db;
+  transform: translateY(-2px);
+}
+
+.suggestion-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.suggestion-description {
+  font-size: 0.95rem;
+  color: #6b7280;
+  line-height: 1.6;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.suggestion-features {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1; /* Pushes button to bottom */
+  margin-bottom: 1rem;
+}
+
+.suggestion-features li {
+  font-size: 0.9rem;
+  color: #4b5563;
+  padding-left: 1.25rem;
+  position: relative;
+  line-height: 1.5;
+}
+
+.suggestion-features li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #1a3d2f;
+  font-weight: bold;
+  font-size: 1.2rem;
+  line-height: 1rem;
+  top: 0.25rem;
+}
+
+.use-suggestion-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  background-color: #1a3d2f;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  width: 100%;
+}
+
+.use-suggestion-button:hover {
+  background-color: #143025;
+}
+
+.play-icon {
+  font-size: 0.75rem;
+}
+
+@media (max-width: 1024px) {
+  .suggestions-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .suggestion-card {
+    min-height: auto;
+  }
+}
