@@ -9,6 +9,7 @@ import { PromptEditor } from './components/tiptap/PromptEditor'
 import { DashboardSuggestions } from './components/DashboardSuggestions'
 import { apiEndpoint } from './config'
 import { DashboardSpec } from './types/dashboard'
+import { ToastProvider, useToast } from './components/ui/ToastContext'
 
 interface DashboardResponse {
   spec: DashboardSpec
@@ -32,7 +33,7 @@ interface ChatSession {
   updatedAt: string
 }
 
-function App() {
+function AppContent() {
   const [prompt, setPrompt] = useState('Build a table for me to see all my users.')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -51,6 +52,7 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const { toast, dismiss } = useToast()
 
   const LOCAL_STORAGE_KEY = 'chatSessions'
   const MAX_SESSIONS = 20
@@ -390,32 +392,7 @@ function App() {
     }
   }
 
-  const handleDisconnect = async () => {
-    try {
-      const response = await fetch(apiEndpoint('disconnect'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.detail || 'Failed to disconnect')
-      }
-
-      await response.json()
-      setDbConnected(false)
-      setDatabaseType(null)
-      setDatabaseName(null)
-      setResult(null) // Clear any existing dashboard results
-      setError(null)
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to disconnect'
-      setError(errorMsg)
-    }
-  }
-
+// 
   const handleDataSourceSelect = (type: 'postgresql' | 'supabase' | 'mysql') => {
     setSelectedDataSource(type)
     setShowDataSourceModal(false)
@@ -423,8 +400,15 @@ function App() {
   }
 
   const handleConnect = async (connectionString: string) => {
+    // Immediately close modal and reset selection
+    setShowConnectionForm(false)
+    setSelectedDataSource(null)
+    
+    // Show loading toast
+    const loadingToastId = toast("Connecting to database...", "loading", 0)
+    
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 15000)
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // Increased timeout for background process
     
     try {
       const response = await fetch(apiEndpoint('connect'), {
@@ -437,6 +421,7 @@ function App() {
       })
 
       clearTimeout(timeoutId)
+      dismiss(loadingToastId)
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -445,15 +430,23 @@ function App() {
 
       await response.json()
       await checkDatabaseConnection()
-      setShowConnectionForm(false)
-      setSelectedDataSource(null)
+      
+      // Show success toast
+      toast("Database connected successfully", "success", 3000)
       setError(null)
     } catch (err) {
       clearTimeout(timeoutId)
-      if (err instanceof Error && err.name === 'AbortError') {
-        throw new Error('Connection timeout. Please check your database is running and accessible.')
+      dismiss(loadingToastId)
+      
+      let errorMessage = 'Failed to connect'
+      if (err instanceof Error) {
+        errorMessage = err.name === 'AbortError' 
+          ? 'Connection timeout. Database might be unreachable.' 
+          : err.message
       }
-      throw err
+      
+      // Show error toast
+      toast(`Connection failed: ${errorMessage}`, "error", 5000)
     }
   }
 
@@ -843,6 +836,14 @@ function App() {
         </div>
       </main>
     </div>
+  )
+}
+
+function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
   )
 }
 
