@@ -54,11 +54,13 @@ def build_system_prompt() -> str:
     2. "dataSource" in a widget must match an "id" in the "dataSources" array (except for Filter widgets which don't need a dataSource).
     3. SQL queries must be valid for the provided schema.
     4. IMPORTANT: In SQL queries, ALL column names and table names MUST be wrapped in double quotes to handle case-sensitivity (e.g., SELECT "Column_Name" FROM "table_name"). This is critical for PostgreSQL/Supabase databases.
-    5. For KPI widgets, the SQL should return a single row (or use LIMIT 1).
-    6. For Charts, ensure xField and yField exist in the SQL SELECT columns.
-    7. For PieChart widgets, use "valueField" instead of "yField" to specify the data column.
-    8. If the user asks for a date filter, add a widget with type "Filter" and filterType "dateRange", and list the IDs of the charts it should affect in "targetWidgetIds".
-    9. Return ONLY valid JSON. No markdown, no backticks, no commentary.
+    5. CRITICAL: When aggregating data (SUM, AVG, COUNT, etc.) or grouping "by category", "by region", etc., you MUST use GROUP BY clause. For example: SELECT "Category", AVG("Revenue") AS avg_revenue FROM "table" GROUP BY "Category"
+    6. For KPI widgets, the SQL should return a single row (or use LIMIT 1).
+    7. For Charts (BarChart, PieChart, etc.), if showing data by categories/groups, use GROUP BY to return one row per category, not individual transaction rows.
+    8. For Charts, ensure xField and yField exist in the SQL SELECT columns.
+    9. For PieChart widgets, use "valueField" instead of "yField" to specify the data column.
+    10. If the user asks for a date filter, add a widget with type "Filter" and filterType "dateRange", and list the IDs of the charts it should affect in "targetWidgetIds".
+    11. Return ONLY valid JSON. No markdown, no backticks, no commentary.
     """
 
 def call_llm(user_prompt: str, db_schema_ddl: str, referenced_tables: set = None) -> str:
