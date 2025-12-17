@@ -366,18 +366,9 @@ function AppContent() {
         setDbConnected(data.connected || false)
         setDatabaseType(data.database_type || null)
         setDatabaseName(data.database_name || null)
-        
-        // Extract table names from schema DDL
-        if (data.schema) {
-          const tableMatches = data.schema.match(/CREATE TABLE\s+(?:"?)(\w+)(?:"?)/gi) || []
-          const tables = tableMatches.map((match: string) => {
-            const tableMatch = match.match(/CREATE TABLE\s+(?:"?)(\w+)(?:"?)/i)
-            return tableMatch ? tableMatch[1].toLowerCase() : null
-          }).filter(Boolean) as string[]
-          setAvailableTables(tables)
-        } else {
-          setAvailableTables([])
-        }
+        const tables = data.tables || []
+        console.log('Available tables loaded:', tables)
+        setAvailableTables(tables)
       } else {
         setDbConnected(false)
         setDatabaseType(null)

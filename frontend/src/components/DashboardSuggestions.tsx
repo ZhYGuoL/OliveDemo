@@ -59,7 +59,20 @@ export function DashboardSuggestions({ onSelectSuggestion, dbConnected }: Dashbo
             Suggestions for your data
           </h2>
         </div>
-        <div className="suggestions-loading">Loading suggestions...</div>
+        <div className="suggestions-grid">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="suggestion-card skeleton-card">
+              <div className="skeleton-title"></div>
+              <div className="skeleton-description"></div>
+              <div className="skeleton-features">
+                <div className="skeleton-feature"></div>
+                <div className="skeleton-feature"></div>
+                <div className="skeleton-feature"></div>
+              </div>
+              <div className="skeleton-button"></div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

@@ -29,6 +29,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
   // Keep ref in sync with prop
   useEffect(() => {
     availableTablesRef.current = availableTables
+    console.log('PromptEditor: availableTables updated', availableTables)
   }, [availableTables])
 
   const editor = useEditor({

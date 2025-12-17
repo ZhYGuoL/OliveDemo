@@ -17,9 +17,12 @@ interface SuggestionProps {
 export const getSuggestionOptions = (itemsOrGetter: string[] | (() => string[]), isLoading: boolean = false) => ({
   items: ({ query }: { query: string }) => {
     const items = typeof itemsOrGetter === 'function' ? itemsOrGetter() : itemsOrGetter
-    return items
+    console.log('Suggestion items - all:', items, 'query:', query)
+    const filtered = items
       .filter(item => item.toLowerCase().startsWith(query.toLowerCase()))
       .slice(0, 4)
+    console.log('Suggestion items - filtered:', filtered)
+    return filtered
   },
 
   render: () => {
@@ -28,8 +31,11 @@ export const getSuggestionOptions = (itemsOrGetter: string[] | (() => string[]),
 
     return {
       onStart: (props: SuggestionProps) => {
+        const allItems = typeof itemsOrGetter === 'function' ? itemsOrGetter() : itemsOrGetter
+        const loading = allItems.length === 0
+
         component = new ReactRenderer(MentionList, {
-          props: { ...props, loading: isLoading },
+          props: { ...props, loading },
           editor: props.editor,
         })
 
@@ -49,7 +55,10 @@ export const getSuggestionOptions = (itemsOrGetter: string[] | (() => string[]),
       },
 
       onUpdate(props: SuggestionProps) {
-        component.updateProps(props)
+        const allItems = typeof itemsOrGetter === 'function' ? itemsOrGetter() : itemsOrGetter
+        const loading = allItems.length === 0
+
+        component.updateProps({ ...props, loading })
 
         if (!props.clientRect) {
           return

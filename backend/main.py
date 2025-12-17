@@ -166,16 +166,28 @@ async def get_schema():
         # Check if database is connected
         current_url = database.get_current_database_url()
         if not current_url:
-            return {"schema": "", "connected": False, "database_type": None, "database_name": None}
-        
+            return {"schema": "", "connected": False, "database_type": None, "database_name": None, "tables": []}
+
         schema = database.get_schema_ddl()
         database_type = database.get_database_type()
         database_name = database.get_database_name()
-        return {"schema": schema, "connected": True, "database_type": database_type, "database_name": database_name}
+
+        # Extract table names from schema
+        import re
+        table_matches = re.findall(r'CREATE TABLE\s+(?:"?)(\w+)(?:"?)', schema, re.IGNORECASE)
+        table_names = [t.lower() for t in table_matches] if table_matches else []
+
+        return {
+            "schema": schema,
+            "connected": True,
+            "database_type": database_type,
+            "database_name": database_name,
+            "tables": table_names
+        }
     except RuntimeError as e:
         # No database connected
         logger.info(f"No database connected: {str(e)}")
-        return {"schema": "", "connected": False, "database_type": None, "database_name": None}
+        return {"schema": "", "connected": False, "database_type": None, "database_name": None, "tables": []}
     except Exception as e:
         logger.error(f"Schema retrieval error: {str(e)}", exc_info=True)
         raise HTTPException(
