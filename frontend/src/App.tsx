@@ -4,7 +4,7 @@ import { SchemaRenderer } from './components/SchemaRenderer'
 import { ChatSidebar } from './components/ChatSidebar'
 import { DataSourceModal } from './components/DataSourceModal'
 import { ConnectionForm } from './components/ConnectionForm'
-import { DatabaseInfo } from './components/DatabaseInfo'
+import { DatabaseSwitcher } from './components/DatabaseSwitcher'
 import { PromptEditor } from './components/tiptap/PromptEditor'
 import { DashboardSuggestions } from './components/DashboardSuggestions'
 import { apiEndpoint } from './config'
@@ -750,17 +750,12 @@ function App() {
                   />
                   <div className="prompt-meta">
                     {dbConnected ? (
-                      <>
-                        <DatabaseInfo databaseType={databaseType} databaseName={databaseName} />
-                        <button
-                          type="button"
-                          onClick={handleDisconnect}
-                          className="disconnect-button"
-                          title="Disconnect database"
-                        >
-                          Disconnect
-                        </button>
-                      </>
+                      <DatabaseSwitcher 
+                        currentDatabaseName={databaseName}
+                        currentDatabaseType={databaseType}
+                        onSwitch={checkDatabaseConnection}
+                        onAdd={() => setShowDataSourceModal(true)}
+                      />
                     ) : (
                       <span className={`db-status ${dbConnected ? 'connected' : 'disconnected'}`}>
                         <span className="db-icon">🗄️</span>

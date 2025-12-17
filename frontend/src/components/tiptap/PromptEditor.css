@@ -38,8 +38,9 @@
 .mention-pill {
   color: #1e40af;
   background-color: #dbeafe;
-  border-radius: 6px;
-  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  padding: 0 0.2rem;
+  font-size: 0.95em; /* Slightly smaller text relative to surrounding text */
   box-decoration-break: clone;
   font-weight: 500;
   display: inline-block; /* Helps with pill shape */

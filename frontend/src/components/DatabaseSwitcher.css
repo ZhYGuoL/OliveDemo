@@ -1,0 +1,129 @@
+.database-switcher {
+  position: relative;
+  display: inline-block;
+}
+
+.switcher-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #374151;
+  transition: all 0.2s;
+}
+
+.switcher-button:hover, .switcher-button.active {
+  background-color: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.db-name {
+  font-weight: 500;
+  color: #111827;
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.switcher-arrow {
+  font-size: 0.7rem;
+  color: #6b7280;
+  margin-left: 0.25rem;
+}
+
+.switcher-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.5rem;
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  min-width: 220px;
+  z-index: 50;
+  padding: 0.5rem 0;
+}
+
+.switcher-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.switcher-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #374151;
+  transition: background-color 0.2s;
+}
+
+.switcher-item:hover {
+  background-color: #f3f4f6;
+}
+
+.switcher-item.active {
+  background-color: #f0fdf4;
+  color: #0f4a28;
+}
+
+.switcher-item-name {
+  flex: 1;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.check-icon {
+  font-size: 0.8rem;
+  color: #0f4a28;
+}
+
+.switcher-divider {
+  height: 1px;
+  background-color: #e5e7eb;
+  margin: 0.5rem 0;
+}
+
+.add-source-button {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #0f4a28;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.add-source-button:hover {
+  background-color: #f0fdf4;
+}
+
+.plus-icon {
+  font-size: 1.1rem;
+  font-weight: 400;
+  width: 16px;
+  display: flex;
+  justify-content: center;
+}
+

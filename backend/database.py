@@ -11,9 +11,58 @@ load_dotenv()
 _adapter: Optional[DatabaseAdapter] = None
 _current_database_url: Optional[str] = None
 
+# Store multiple connections: { "connection_id": "database_url" }
+_connections: Dict[str, str] = {}
+_connection_names: Dict[str, str] = {}  # Optional: store user-friendly names
+
+def add_connection(database_url: str, name: Optional[str] = None) -> str:
+    """Add a new database connection and return its ID."""
+    import hashlib
+    # Generate a simple ID based on the URL
+    connection_id = hashlib.md5(database_url.encode()).hexdigest()
+    _connections[connection_id] = database_url
+    
+    # Store name or generate one from the URL if not provided
+    if name:
+        _connection_names[connection_id] = name
+    else:
+        # Try to extract a meaningful name
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(database_url)
+            db_name = parsed.path.lstrip('/')
+            if not db_name:
+                db_name = "Database"
+            _connection_names[connection_id] = db_name
+        except:
+            _connection_names[connection_id] = "Database"
+            
+    return connection_id
+
+def get_connections() -> List[Dict[str, str]]:
+    """Get all saved connections."""
+    return [
+        {"id": cid, "url": url, "name": _connection_names.get(cid, "Database")}
+        for cid, url in _connections.items()
+    ]
+
+def switch_connection(connection_id: str) -> bool:
+    """Switch the active connection to the specified ID."""
+    if connection_id in _connections:
+        set_database_url(_connections[connection_id])
+        return True
+    return False
+
 def set_database_url(database_url: str) -> None:
     """Set the database URL and reset the adapter to use the new connection."""
     global _adapter, _current_database_url
+    
+    # Check if this URL is already saved, if not add it
+    import hashlib
+    connection_id = hashlib.md5(database_url.encode()).hexdigest()
+    if connection_id not in _connections:
+        add_connection(database_url)
+        
     _current_database_url = database_url
     _adapter = None  # Reset adapter to force recreation with new URL
     # Also set in environment for compatibility
@@ -55,21 +104,94 @@ def get_database_type() -> Optional[str]:
 def get_database_name() -> Optional[str]:
     """Get the name of the currently connected database."""
     try:
-        from urllib.parse import urlparse
+        from urllib.parse import urlparse, unquote
         url = _current_database_url or os.getenv("DATABASE_URL", "")
         if not url:
             return None
         
-        parsed = urlparse(url)
-        # Database name is typically the path without the leading slash
+        # Handle URLs with brackets in password (e.g., [PASSWORD])
+        # Replace brackets temporarily for parsing
+        url_for_parsing = url.replace('[', '%5B').replace(']', '%5D')
+        
+        try:
+            parsed = urlparse(url_for_parsing)
+        except Exception:
+            # Fallback: try parsing original URL
+            parsed = urlparse(url)
+        
+        hostname = parsed.hostname or ""
+        
+        # For Supabase, extract project reference ID from hostname
+        if 'supabase' in url.lower():
+            # Supabase hostname formats:
+            # - db.xxxxx.supabase.co (direct connection)
+            # - xxxxx.pooler.supabase.com (pooled connection)
+            # - aws-0-us-west-1.pooler.supabase.com (pooled with region)
+            
+            # Try direct connection format: db.xxxxx.supabase.co
+            if 'db.' in hostname and '.supabase.co' in hostname:
+                parts = hostname.split('.')
+                if len(parts) >= 2:
+                    project_ref = parts[1]  # The part after 'db.'
+                    if project_ref and project_ref != 'supabase' and len(project_ref) > 3:
+                        return project_ref
+            
+            # Try pooled connection format: xxxxx.pooler.supabase.com
+            if '.pooler.supabase.com' in hostname:
+                parts = hostname.split('.')
+                if len(parts) >= 1:
+                    project_ref = parts[0]  # The first part
+                    # Skip AWS region prefixes
+                    if project_ref and not project_ref.startswith('aws-') and len(project_ref) > 3:
+                        return project_ref
+            
+            # If we couldn't extract from URL, try querying the database
+            try:
+                adapter = _get_adapter()
+                conn = adapter.connect()
+                cursor = conn.cursor()
+                cursor.execute("SELECT current_database()")
+                db_name = cursor.fetchone()[0]
+                cursor.close()
+                conn.close()
+                # For Supabase, if it's "postgres", try to get project ref from connection info
+                if db_name == "postgres":
+                    # Try to extract from URL one more time using regex
+                    import re
+                    match = re.search(r'db\.([a-z0-9]+)\.supabase\.co', url.lower())
+                    if match:
+                        return match.group(1)
+                    return None
+                return db_name
+            except Exception:
+                pass
+            
+            # Last resort: return None (frontend won't show database name)
+            return None
+        
+        # For other databases, use the path (database name)
         db_name = parsed.path.lstrip('/')
         # Remove any query parameters or fragments
         if '?' in db_name:
             db_name = db_name.split('?')[0]
         if db_name:
             return db_name
-        return None
-    except Exception:
+        
+        # Fallback: try querying the database directly
+        try:
+            adapter = _get_adapter()
+            conn = adapter.connect()
+            cursor = conn.cursor()
+            cursor.execute("SELECT current_database()")
+            db_name = cursor.fetchone()[0]
+            cursor.close()
+            conn.close()
+            return db_name
+        except Exception:
+            return None
+    except Exception as e:
+        import logging
+        logging.error(f"Error getting database name: {e}")
         return None
 
 def _get_adapter() -> DatabaseAdapter:

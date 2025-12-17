@@ -106,7 +106,14 @@ async def connect_database(request: ConnectRequest):
         database.set_database_url(request.database_url)
         
         logger.info(f"Database connected successfully: {request.database_url.split('@')[1] if '@' in request.database_url else 'connected'}")
-        return {"status": "connected", "message": "Database connected successfully"}
+        
+        # Return connection info
+        return {
+            "status": "connected", 
+            "message": "Database connected successfully",
+            "database_type": database.get_database_type(),
+            "database_name": database.get_database_name()
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -115,6 +122,28 @@ async def connect_database(request: ConnectRequest):
             status_code=400,
             detail=f"Failed to connect to database: {str(e)}"
         )
+
+@app.get("/connections")
+async def get_connections():
+    """Get list of saved database connections."""
+    return {"connections": database.get_connections()}
+
+@app.post("/switch_connection")
+async def switch_connection_endpoint(request: Dict[str, str]):
+    """Switch to a saved connection by ID."""
+    connection_id = request.get("id")
+    if not connection_id:
+        raise HTTPException(status_code=400, detail="Connection ID is required")
+    
+    if database.switch_connection(connection_id):
+        return {
+            "status": "switched", 
+            "message": "Switched database connection successfully",
+            "database_type": database.get_database_type(),
+            "database_name": database.get_database_name()
+        }
+    else:
+        raise HTTPException(status_code=404, detail="Connection not found")
 
 @app.post("/disconnect")
 async def disconnect_database():
