@@ -56,7 +56,7 @@ def build_system_prompt() -> str:
     4. IMPORTANT: In SQL queries, ALL column names and table names MUST be wrapped in double quotes to handle case-sensitivity (e.g., SELECT "Column_Name" FROM "table_name"). This is critical for PostgreSQL/Supabase databases.
     5. CRITICAL: When performing math operations or aggregations (SUM, AVG, etc.) on columns that are TEXT type in the schema, you MUST cast them to numeric first using ::numeric or ::integer. Example: SUM("Clicks"::integer), AVG("Revenue"::numeric). Check the schema data types carefully!
     6. CRITICAL: When aggregating data (SUM, AVG, COUNT, etc.) or grouping "by category", "by region", etc., you MUST use GROUP BY clause. For example: SELECT "Category", AVG("Revenue") AS avg_revenue FROM "table" GROUP BY "Category"
-    7. For KPI widgets, the SQL should return a single row (or use LIMIT 1).
+    7. For KPI widgets showing totals/aggregates (e.g., "total revenue", "total users"), the SQL MUST use aggregation functions (SUM, COUNT, AVG, etc.) to return a single aggregated value. Example: SELECT SUM("Revenue") AS total_revenue FROM "table". Never use LIMIT 1 for aggregations - use proper aggregate functions.
     8. For Charts (BarChart, PieChart, etc.), if showing data by categories/groups, use GROUP BY to return one row per category, not individual transaction rows.
     9. For Charts, ensure xField and yField exist in the SQL SELECT columns.
     10. For PieChart widgets, use "valueField" instead of "yField" to specify the data column.
