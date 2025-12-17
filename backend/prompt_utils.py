@@ -62,3 +62,4 @@ def filter_schema_by_tables(schema_ddl: str, table_names: Set[str]) -> str:
     
     return '\n\n'.join(filtered_statements) if filtered_statements else schema_ddl
 
+
