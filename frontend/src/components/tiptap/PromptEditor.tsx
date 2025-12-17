@@ -74,15 +74,15 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
     }
   }, [editor, availableTables])
 
-  // Sync external value changes (e.g. clearing the input)
+  // Sync external value changes (e.g. clearing the input or setting from suggestions)
   useEffect(() => {
     if (editor && value !== editor.getText()) {
       // Only set content if it's materially different to avoid cursor jumping
       // This is a common issue with binding 'value' to an editor.
-      // Usually better to let the editor drive the state, but 'value' is needed for clearing.
-      if (value === '') {
-        editor.commands.setContent('')
-      }
+      // Usually better to let the editor drive the state, but 'value' is needed for external updates.
+      editor.commands.setContent(value)
+      // Move cursor to end of content
+      editor.commands.focus('end')
     }
   }, [editor, value])
 

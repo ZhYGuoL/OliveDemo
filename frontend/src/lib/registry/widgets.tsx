@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell 
@@ -141,36 +141,53 @@ export const PieChartWidget: React.FC<WidgetProps> = ({ spec, data }) => (
   </Card>
 );
 
-export const TableWidget: React.FC<WidgetProps> = ({ spec, data }) => (
-  <Card className="h-full flex flex-col overflow-hidden">
-    <CardHeader>
-      <CardTitle>{spec.title}</CardTitle>
-      {spec.description && <CardDescription>{spec.description}</CardDescription>}
-    </CardHeader>
-    <CardContent className="flex-1 overflow-auto p-0">
-      <table className="w-full text-sm text-left">
-        <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
-          <tr>
-            {spec.columns ? spec.columns.map(col => (
-              <th key={col} className="px-6 py-3">{col}</th>
-            )) : Object.keys(data[0] || {}).map(key => (
-              <th key={key} className="px-6 py-3">{key}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((row, i) => (
-            <tr key={i} className="bg-white border-b hover:bg-gray-50">
+export const TableWidget: React.FC<WidgetProps> = ({ spec, data }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const INITIAL_ROWS = 5;
+  const displayData = isExpanded ? data : data.slice(0, INITIAL_ROWS);
+  const hasMoreRows = data.length > INITIAL_ROWS;
+
+  return (
+    <Card className="h-full flex flex-col overflow-hidden">
+      <CardHeader>
+        <CardTitle>{spec.title}</CardTitle>
+        {spec.description && <CardDescription>{spec.description}</CardDescription>}
+      </CardHeader>
+      <CardContent className="flex-1 overflow-auto p-0">
+        <table className="w-full text-sm text-left">
+          <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
+            <tr>
               {spec.columns ? spec.columns.map(col => (
-                <td key={col} className="px-6 py-4">{row[col]}</td>
-              )) : Object.keys(row).map(key => (
-                <td key={key} className="px-6 py-4">{row[key]}</td>
+                <th key={col} className="px-6 py-3">{col}</th>
+              )) : Object.keys(data[0] || {}).map(key => (
+                <th key={key} className="px-6 py-3">{key}</th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </CardContent>
-  </Card>
-);
+          </thead>
+          <tbody>
+            {displayData.map((row, i) => (
+              <tr key={i} className="bg-white border-b hover:bg-gray-50">
+                {spec.columns ? spec.columns.map(col => (
+                  <td key={col} className="px-6 py-4">{row[col]}</td>
+                )) : Object.keys(row).map(key => (
+                  <td key={key} className="px-6 py-4">{row[key]}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {hasMoreRows && (
+          <div className="flex justify-center py-3 bg-gray-50 border-t sticky bottom-0">
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            >
+              {isExpanded ? `Show Less (${INITIAL_ROWS} rows)` : `Show More (${data.length} total rows)`}
+            </button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
 
