@@ -147,7 +147,7 @@ def generate_dashboard_suggestions(db_schema_ddl: str, table_names: list = None)
     Generate dashboard suggestions based on database schema.
     Returns a list of suggestion objects with title, description, and prompt.
     """
-    system_prompt = """You are an expert data analyst. Based on the provided database schema, generate 4-6 relevant dashboard suggestions that would be useful for this database.
+    system_prompt = """You are an expert data analyst. Based on the provided database schema, generate exactly 4 relevant dashboard suggestions that would be useful for this database.
 
 For each suggestion, provide:
 - A clear, descriptive title (e.g., "User Authentication and Session Monitor")
@@ -162,7 +162,7 @@ Focus on practical, actionable dashboards that provide real business value. Cons
 - Analytics and reporting
 - Security and monitoring
 
-Return ONLY a valid JSON array of objects with this structure:
+Return ONLY a valid JSON array of exactly 4 objects with this structure:
 [
   {
     "title": "Dashboard Title",
@@ -176,21 +176,21 @@ Return ONLY a valid JSON array of objects with this structure:
   }
 ]
 
-Return ONLY the JSON array. No markdown, no backticks, no commentary."""
+Return ONLY the JSON array with exactly 4 suggestions. No markdown, no backticks, no commentary."""
 
     # Build context about tables
     table_context = ""
     if table_names:
         table_list = ", ".join(table_names)
         table_context = f"\n\nAvailable tables: {table_list}\nFocus your suggestions on these tables and their relationships.\n"
-    
+
     full_prompt = f"""{system_prompt}
 
 Database Schema:
 {db_schema_ddl}
 {table_context}
 
-Generate 4-6 dashboard suggestions as a JSON array.
+Generate exactly 4 dashboard suggestions as a JSON array.
 """
 
     try:
@@ -223,19 +223,19 @@ Generate 4-6 dashboard suggestions as a JSON array.
         json_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', json_str)
         
         suggestions = json.loads(json_str)
-        
+
         # Validate and ensure we have suggestions
         if not isinstance(suggestions, list) or len(suggestions) == 0:
             return get_default_suggestions(table_names)
-        
-        return suggestions[:6]  # Limit to 6 suggestions
+
+        return suggestions[:4]  # Limit to exactly 4 suggestions
         
     except Exception as e:
         logger.error(f"Failed to generate suggestions: {e}")
         return get_default_suggestions(table_names)
 
 def get_default_suggestions(table_names: list = None) -> list:
-    """Return default suggestions if LLM fails."""
+    """Return default suggestions if LLM fails. Always returns exactly 4 suggestions."""
     defaults = [
         {
             "title": "Data Overview Dashboard",
@@ -256,13 +256,33 @@ def get_default_suggestions(table_names: list = None) -> list:
                 "View table relationships"
             ],
             "prompt": "Create a table explorer to view and search through all my database tables"
+        },
+        {
+            "title": "Recent Activity Monitor",
+            "description": "Track and monitor recent changes and activities across your database.",
+            "features": [
+                "View recent record additions",
+                "Monitor update patterns",
+                "Track data changes over time"
+            ],
+            "prompt": "Build a dashboard to monitor recent activity and changes in my database"
+        },
+        {
+            "title": "Quick Stats Summary",
+            "description": "Display key statistics and counts from your most important tables.",
+            "features": [
+                "Show record counts by table",
+                "Display key performance indicators",
+                "Visualize data distribution"
+            ],
+            "prompt": "Create a dashboard with quick statistics and counts from my database tables"
         }
     ]
-    
+
+    # If table names exist, replace the first suggestion with a table-specific one
     if table_names and len(table_names) > 0:
-        # Add a table-specific suggestion
         table_name = table_names[0]
-        defaults.insert(0, {
+        defaults[0] = {
             "title": f"{table_name.title()} Analytics",
             "description": f"Analyze and visualize data from the {table_name} table with charts and metrics.",
             "features": [
@@ -271,6 +291,6 @@ def get_default_suggestions(table_names: list = None) -> list:
                 "Filter and search data"
             ],
             "prompt": f"Build a dashboard to analyze and visualize data from the {table_name} table"
-        })
-    
-    return defaults
+        }
+
+    return defaults[:4]  # Ensure exactly 4 suggestions
