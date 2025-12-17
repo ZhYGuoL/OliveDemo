@@ -38,6 +38,8 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>((props, 
 
   useImperativeHandle(ref, () => ({
     onKeyDown: ({ event }) => {
+      if (props.loading) return false
+
       if (event.key === 'ArrowUp') {
         upHandler()
         return true
@@ -62,7 +64,7 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>((props, 
       <div className="mention-dropdown">
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className="mention-item skeleton">
-            <div className="skeleton-text" />
+            <div className="skeleton-text"></div>
           </div>
         ))}
       </div>

@@ -22,6 +22,9 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
   placeholder = 'Ask a question...'
 }) => {
   const availableTablesRef = useRef(availableTables)
+  // Track if we are in a loading state (e.g. no tables available yet)
+  // In a real app, you might pass an explict 'isLoading' prop
+  const isLoading = availableTables.length === 0
 
   // Keep ref in sync with prop
   useEffect(() => {
@@ -38,7 +41,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
         HTMLAttributes: {
           class: 'mention-pill',
         },
-        suggestion: getSuggestionOptions(() => availableTablesRef.current),
+        suggestion: getSuggestionOptions(() => availableTablesRef.current, isLoading),
       }),
     ],
     content: value, // Set initial content

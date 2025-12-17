@@ -86,7 +86,7 @@ export function DashboardSuggestions({ onSelectSuggestion, dbConnected }: Dashbo
       </div>
       
       <div className="suggestions-grid">
-        {suggestions.map((suggestion, index) => (
+        {suggestions.slice(0, 4).map((suggestion, index) => (
           <div key={index} className="suggestion-card">
             <h3 className="suggestion-title">{suggestion.title}</h3>
             <p className="suggestion-description">{suggestion.description}</p>
