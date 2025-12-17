@@ -143,8 +143,59 @@ export const PieChartWidget: React.FC<WidgetProps> = ({ spec, data }) => (
 
 export const TableWidget: React.FC<WidgetProps> = ({ spec, data }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const INITIAL_ROWS = 5;
-  const displayData = isExpanded ? data : data.slice(0, INITIAL_ROWS);
+
+  // Get columns from spec or data
+  const columns = spec.columns || Object.keys(data[0] || {});
+
+  // Handle column header click
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      // Toggle direction if clicking the same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column, default to ascending
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  // Sort data
+  const sortedData = React.useMemo(() => {
+    if (!sortColumn) return data;
+
+    return [...data].sort((a, b) => {
+      const aVal = a[sortColumn];
+      const bVal = b[sortColumn];
+
+      // Handle null/undefined values
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+
+      // Try to parse as numbers for numeric sorting
+      const aNum = Number(aVal);
+      const bNum = Number(bVal);
+
+      if (!isNaN(aNum) && !isNaN(bNum)) {
+        return sortDirection === 'asc' ? aNum - bNum : bNum - aNum;
+      }
+
+      // String comparison
+      const aStr = String(aVal).toLowerCase();
+      const bStr = String(bVal).toLowerCase();
+
+      if (sortDirection === 'asc') {
+        return aStr < bStr ? -1 : aStr > bStr ? 1 : 0;
+      } else {
+        return aStr > bStr ? -1 : aStr < bStr ? 1 : 0;
+      }
+    });
+  }, [data, sortColumn, sortDirection]);
+
+  const displayData = isExpanded ? sortedData : sortedData.slice(0, INITIAL_ROWS);
   const hasMoreRows = data.length > INITIAL_ROWS;
 
   return (
@@ -157,20 +208,29 @@ export const TableWidget: React.FC<WidgetProps> = ({ spec, data }) => {
         <table className="w-full text-sm text-left">
           <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
             <tr>
-              {spec.columns ? spec.columns.map(col => (
-                <th key={col} className="px-6 py-3">{col}</th>
-              )) : Object.keys(data[0] || {}).map(key => (
-                <th key={key} className="px-6 py-3">{key}</th>
+              {columns.map(col => (
+                <th
+                  key={col}
+                  className="px-6 py-3 cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                  onClick={() => handleSort(col)}
+                >
+                  <div className="flex items-center gap-1">
+                    <span>{col}</span>
+                    {sortColumn === col && (
+                      <span className="text-gray-500">
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </div>
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {displayData.map((row, i) => (
               <tr key={i} className="bg-white border-b hover:bg-gray-50">
-                {spec.columns ? spec.columns.map(col => (
+                {columns.map(col => (
                   <td key={col} className="px-6 py-4">{row[col]}</td>
-                )) : Object.keys(row).map(key => (
-                  <td key={key} className="px-6 py-4">{row[key]}</td>
                 ))}
               </tr>
             ))}
