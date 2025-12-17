@@ -110,7 +110,15 @@ export function DashboardSuggestions({ onSelectSuggestion, dbConnected }: Dashbo
             </ul>
             <button
               className="use-suggestion-button"
-              onClick={() => onSelectSuggestion(suggestion.prompt)}
+              onClick={() => {
+                // Construct full description as prompt
+                const fullPrompt = `${suggestion.title}
+
+${suggestion.description}
+
+${suggestion.features.map(f => `- ${f}`).join('\n')}`
+                onSelectSuggestion(fullPrompt)
+              }}
             >
               <span className="play-icon">▶</span>
               Use This Suggestion
