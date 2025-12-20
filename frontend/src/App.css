@@ -745,6 +745,30 @@
   font-family: 'Courier New', Courier, monospace;
 }
 
+.sql-query-section {
+  margin-bottom: 2rem;
+}
+
+.sql-query-section:last-child {
+  margin-bottom: 0;
+}
+
+.sql-query-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sql-primary-key {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: #6b7280;
+}
+
 .data-preview {
   overflow-x: auto;
 }

@@ -245,7 +245,9 @@ function AppContent() {
       }
 
       const data: DashboardResponse = await response.json()
-      
+      console.log('[App handleSubmit] Received data from API:', data);
+      console.log('[App handleSubmit] Data sources:', Object.keys(data.data), 'with lengths:', Object.entries(data.data).map(([k, v]) => `${k}: ${v?.length ?? 0}`));
+
       // Merge new widgets and data sources with existing result if available
       if (result && result.spec) {
         // Create new widget IDs to avoid collisions if necessary (though LLM should generate unique ones in ideal world)
