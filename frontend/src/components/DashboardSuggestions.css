@@ -100,6 +100,31 @@
   flex: 0 0 auto;
 }
 
+.suggestion-tables {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.suggestion-tables .table-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  background-color: #dbeafe;
+  color: #1e40af;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid #bfdbfe;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.suggestion-tables .table-tag:hover {
+  background-color: #bfdbfe;
+  border-color: #93c5fd;
+}
+
 .suggestion-features {
   list-style: none;
   padding: 0;

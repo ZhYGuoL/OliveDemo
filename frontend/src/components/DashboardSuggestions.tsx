@@ -7,6 +7,7 @@ interface DashboardSuggestion {
   description: string
   features: string[]
   prompt: string
+  tables?: string[]
 }
 
 interface DashboardSuggestionsProps {
@@ -103,6 +104,13 @@ export function DashboardSuggestions({ onSelectSuggestion, dbConnected }: Dashbo
           <div key={index} className="suggestion-card">
             <h3 className="suggestion-title">{suggestion.title}</h3>
             <p className="suggestion-description">{suggestion.description}</p>
+            {suggestion.tables && suggestion.tables.length > 0 && (
+              <div className="suggestion-tables">
+                {suggestion.tables.map((table, tIndex) => (
+                  <span key={tIndex} className="table-tag">{table}</span>
+                ))}
+              </div>
+            )}
             <ul className="suggestion-features">
               {suggestion.features.map((feature, fIndex) => (
                 <li key={fIndex}>{feature}</li>
