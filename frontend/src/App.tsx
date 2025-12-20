@@ -484,7 +484,9 @@ function AppContent() {
       }
 
       const data: DashboardResponse = await response.json()
-      
+      console.log('[App handleChatSubmit] Received data from API:', data);
+      console.log('[App handleChatSubmit] Data sources:', Object.keys(data.data), 'with lengths:', Object.entries(data.data).map(([k, v]) => `${k}: ${v?.length ?? 0}`));
+
       // Merge new widgets and data sources with existing result if available
       if (result && result.spec) {
         // Generate a unique suffix for this batch of additions to prevent ID collisions
@@ -814,6 +816,11 @@ function AppContent() {
               </div>
               
               <div className="dashboard-container">
+                {(() => {
+                  console.log('[App Render] Rendering SchemaRenderer with result:', result);
+                  console.log('[App Render] Data keys:', Object.keys(result.data), 'with lengths:', Object.entries(result.data).map(([k, v]) => `${k}: ${v?.length ?? 0}`));
+                  return null;
+                })()}
                 <SchemaRenderer
                   spec={result.spec}
                   data={result.data}
