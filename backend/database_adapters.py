@@ -3,6 +3,7 @@ import os
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from urllib.parse import urlparse
+from decimal import Decimal
 
 # Try to import database adapters
 try:
@@ -17,6 +18,24 @@ try:
     PYMySQL_AVAILABLE = True
 except ImportError:
     PYMySQL_AVAILABLE = False
+
+
+def convert_value(value: Any) -> Any:
+    """
+    Convert database-specific types to JSON-serializable types.
+    Specifically converts Decimal to int or float.
+    """
+    if isinstance(value, Decimal):
+        # Convert to int if it's a whole number, otherwise float
+        if value % 1 == 0:
+            return int(value)
+        return float(value)
+    return value
+
+
+def convert_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert all Decimal values in a row to int or float."""
+    return {key: convert_value(val) for key, val in row.items()}
 
 
 class DatabaseAdapter(ABC):
@@ -128,18 +147,19 @@ class PostgreSQLAdapter(DatabaseAdapter):
         """Execute SELECT query on PostgreSQL."""
         conn = self.connect()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        
+
         try:
             sql_upper = sql.strip().upper()
             if "LIMIT" not in sql_upper:
                 sql_with_limit = f"{sql.rstrip(';')} LIMIT {limit}"
             else:
                 sql_with_limit = sql
-            
+
             cursor.execute(sql_with_limit)
             rows = cursor.fetchall()
-            result = [dict(row) for row in rows]
-            
+            # Convert Decimal values to int/float for JSON serialization
+            result = [convert_row(dict(row)) for row in rows]
+
             conn.close()
             return result
         except Exception as e:
@@ -261,18 +281,19 @@ class MySQLAdapter(DatabaseAdapter):
         """Execute SELECT query on MySQL."""
         conn = self.connect()
         cursor = conn.cursor()
-        
+
         try:
             sql_upper = sql.strip().upper()
             if "LIMIT" not in sql_upper:
                 sql_with_limit = f"{sql.rstrip(';')} LIMIT {limit}"
             else:
                 sql_with_limit = sql
-            
+
             cursor.execute(sql_with_limit)
             rows = cursor.fetchall()
-            result = [dict(row) for row in rows]
-            
+            # Convert Decimal values to int/float for JSON serialization
+            result = [convert_row(dict(row)) for row in rows]
+
             conn.close()
             return result
         except Exception as e:
