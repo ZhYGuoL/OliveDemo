@@ -803,10 +803,16 @@ function AppContent() {
                   </div>
                 </div>
                 <div className="dashboard-header-actions">
-                  <button className="header-action-icon" title="View SQL Queries" onClick={() => setShowSQL(!showSQL)}>
+                  <button className="header-action-icon" title="View SQL Queries" onClick={() => {
+                    setShowSQL(!showSQL)
+                    if (!showSQL) setShowJSON(false)
+                  }}>
                     <span>SQL</span>
                   </button>
-                  <button className="header-action-icon" title="View JSON Spec" onClick={() => setShowJSON(!showJSON)}>
+                  <button className="header-action-icon" title="View JSON Spec" onClick={() => {
+                    setShowJSON(!showJSON)
+                    if (!showJSON) setShowSQL(false)
+                  }}>
                     <span>{`{}`}</span>
                   </button>
                   <button className="header-action-button primary">
@@ -815,19 +821,7 @@ function AppContent() {
                 </div>
               </div>
               
-              <div className="dashboard-container">
-                {(() => {
-                  console.log('[App Render] Rendering SchemaRenderer with result:', result);
-                  console.log('[App Render] Data keys:', Object.keys(result.data), 'with lengths:', Object.entries(result.data).map(([k, v]) => `${k}: ${v?.length ?? 0}`));
-                  return null;
-                })()}
-                <SchemaRenderer
-                  spec={result.spec}
-                  data={result.data}
-                />
-              </div>
-
-              {showSQL && (
+              {showSQL ? (
                 <div className="result-panel">
                   <h2>SQL Queries</h2>
                   {result.spec.dataSources.map((dataSource, index) => (
@@ -844,14 +838,24 @@ function AppContent() {
                     </div>
                   ))}
                 </div>
-              )}
-
-              {showJSON && (
+              ) : showJSON ? (
                 <div className="result-panel">
                   <h2>Dashboard Spec</h2>
                   <pre className="code-block">
                     <code>{JSON.stringify(result.spec, null, 2)}</code>
                   </pre>
+                </div>
+              ) : (
+                <div className="dashboard-container">
+                  {(() => {
+                    console.log('[App Render] Rendering SchemaRenderer with result:', result);
+                    console.log('[App Render] Data keys:', Object.keys(result.data), 'with lengths:', Object.entries(result.data).map(([k, v]) => `${k}: ${v?.length ?? 0}`));
+                    return null;
+                  })()}
+                  <SchemaRenderer
+                    spec={result.spec}
+                    data={result.data}
+                  />
                 </div>
               )}
             </div>
