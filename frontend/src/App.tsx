@@ -46,6 +46,7 @@ function AppContent() {
   const [chatHistory, setChatHistory] = useState<Array<{role: 'user' | 'assistant', content: string}>>([])
   const [chatInput, setChatInput] = useState('')
   const [showJSON, setShowJSON] = useState(false)
+  const [showSQL, setShowSQL] = useState(false)
   const [showDataSourceModal, setShowDataSourceModal] = useState(false)
   const [showConnectionForm, setShowConnectionForm] = useState(false)
   const [selectedDataSource, setSelectedDataSource] = useState<'postgresql' | 'supabase' | 'mysql' | null>(null)
@@ -798,6 +799,9 @@ function AppContent() {
                   </div>
                 </div>
                 <div className="dashboard-header-actions">
+                  <button className="header-action-icon" title="View SQL Queries" onClick={() => setShowSQL(!showSQL)}>
+                    <span>SQL</span>
+                  </button>
                   <button className="header-action-icon" title="View JSON Spec" onClick={() => setShowJSON(!showJSON)}>
                     <span>{`{}`}</span>
                   </button>
@@ -813,6 +817,25 @@ function AppContent() {
                   data={result.data}
                 />
               </div>
+
+              {showSQL && (
+                <div className="result-panel">
+                  <h2>SQL Queries</h2>
+                  {result.spec.dataSources.map((dataSource, index) => (
+                    <div key={dataSource.id} className="sql-query-section">
+                      <h3 className="sql-query-title">
+                        {dataSource.id}
+                        {dataSource.primaryKey && (
+                          <span className="sql-primary-key"> (Primary Key: {dataSource.primaryKey})</span>
+                        )}
+                      </h3>
+                      <pre className="code-block">
+                        <code>{dataSource.sql}</code>
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {showJSON && (
                 <div className="result-panel">
