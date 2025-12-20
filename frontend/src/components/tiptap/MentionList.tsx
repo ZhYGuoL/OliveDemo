@@ -80,7 +80,9 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>((props, 
             key={index}
             onClick={() => selectItem(index)}
           >
-            {item}
+            <span className="mention-item-icon">📊</span>
+            <span className="mention-item-label">{item}</span>
+            <span className="mention-item-type">table</span>
           </button>
         ))
       ) : (
