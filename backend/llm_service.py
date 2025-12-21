@@ -155,31 +155,35 @@ def generate_dashboard_suggestions(db_schema_ddl: str, table_names: list = None)
     system_prompt = """You are an expert data analyst. Based on the provided database schema, generate exactly 4 relevant dashboard suggestions that would be useful for this database.
 
 For each suggestion, provide:
-- A clear, descriptive title (e.g., "User Authentication and Session Monitor")
-- A detailed description explaining what the dashboard does and who would use it
-- A list of 3-4 key features/capabilities
+- A clear, descriptive title
+- A detailed description (2-3 sentences) explaining what the dashboard does, who would use it, and the business value it provides
+- A list of 4-5 specific, actionable features/capabilities
+- A list of table names (without @ prefix) that would be used for this dashboard
 - A natural language prompt that could be used to generate this dashboard
 
 IMPORTANT: In the prompt field, prefix all table names with @ symbol (e.g., @users, @orders, @products). This allows them to be recognized as table references in the interface.
 
-Focus on practical, actionable dashboards that provide real business value. Consider common use cases like:
+Focus on practical, actionable dashboards that provide real business value. Make suggestions specific to the actual schema provided. Consider:
 - User management and authentication
-- E-commerce analytics
-- Content management
-- Analytics and reporting
-- Security and monitoring
+- Sales and revenue analytics
+- Product performance tracking
+- Customer behavior analysis
+- Operational monitoring
+- Inventory and supply chain
 
 Return ONLY a valid JSON array of exactly 4 objects with this structure:
 [
   {
     "title": "Dashboard Title",
-    "description": "Detailed description of what this dashboard does and who would use it.",
+    "description": "Detailed 2-3 sentence description of what this dashboard does, who would use it, and the business value it provides.",
     "features": [
-      "Feature 1",
-      "Feature 2",
-      "Feature 3"
+      "Specific feature 1",
+      "Specific feature 2",
+      "Specific feature 3",
+      "Specific feature 4"
     ],
-    "prompt": "Natural language prompt with @table references (e.g., 'Show me all records from @users table')"
+    "tables": ["table1", "table2", "table3"],
+    "prompt": "Natural language prompt with @table references"
   }
 ]
 
@@ -208,8 +212,8 @@ Generate exactly 4 dashboard suggestions as a JSON array.
                 "prompt": full_prompt,
                 "stream": False,
                 "options": {
-                    "temperature": 0.3,  # Lower temperature for faster, more consistent suggestions
-                    "num_predict": 2000,  # Limit max tokens for faster generation
+                    "temperature": 0.8,  # Higher temperature for more varied suggestions
+                    "num_predict": 2500,  # Allow more tokens for detailed suggestions
                 }
             },
             timeout=60.0
@@ -261,6 +265,7 @@ def get_default_suggestions(table_names: list = None) -> list:
                     "Create visualizations of key metrics",
                     "Filter and search data"
                 ],
+                "tables": [table_name],
                 "prompt": f"Build a dashboard to analyze and visualize data from {table_ref}"
             },
             {
@@ -271,6 +276,7 @@ def get_default_suggestions(table_names: list = None) -> list:
                     "See data distribution and trends",
                     "Monitor data growth over time"
                 ],
+                "tables": table_names[:3] if table_names else [],
                 "prompt": f"Build a dashboard showing an overview of {' '.join(table_refs)} with key metrics and charts" if table_refs else "Build a dashboard showing an overview of all my data with key metrics and charts"
             },
             {
@@ -281,6 +287,7 @@ def get_default_suggestions(table_names: list = None) -> list:
                     "Search and filter records",
                     "View table relationships"
                 ],
+                "tables": [table_name],
                 "prompt": f"Create a table to view and search through {table_ref}"
             },
             {
@@ -291,6 +298,7 @@ def get_default_suggestions(table_names: list = None) -> list:
                     "Display key performance indicators",
                     "Visualize data distribution"
                 ],
+                "tables": table_names[:3] if table_names else [],
                 "prompt": f"Show me statistics and counts from {' and '.join(table_refs)}" if table_refs else "Create a dashboard with quick statistics and counts from my database tables"
             }
         ]
@@ -305,6 +313,7 @@ def get_default_suggestions(table_names: list = None) -> list:
                     "See data distribution and trends",
                     "Monitor data growth over time"
                 ],
+                "tables": [],
                 "prompt": "Build a dashboard showing an overview of all my data with key metrics and charts"
             },
             {
@@ -315,6 +324,7 @@ def get_default_suggestions(table_names: list = None) -> list:
                     "Search and filter records",
                     "View table relationships"
                 ],
+                "tables": [],
                 "prompt": "Create a table explorer to view and search through all my database tables"
             },
             {
@@ -325,6 +335,7 @@ def get_default_suggestions(table_names: list = None) -> list:
                     "Monitor update patterns",
                     "Track data changes over time"
                 ],
+                "tables": [],
                 "prompt": "Build a dashboard to monitor recent activity and changes in my database"
             },
             {
@@ -335,6 +346,7 @@ def get_default_suggestions(table_names: list = None) -> list:
                     "Display key performance indicators",
                     "Visualize data distribution"
                 ],
+                "tables": [],
                 "prompt": "Create a dashboard with quick statistics and counts from my database tables"
             }
         ]
