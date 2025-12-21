@@ -19,13 +19,9 @@ export const SchemaRenderer: React.FC<SchemaRendererProps> = ({ spec, data }) =>
 
   // Helper to filter data based on active filters
   const getFilteredData = (dataSourceId: string | undefined, widgetId: string) => {
-    if (!dataSourceId) {
-      console.log(`[SchemaRenderer] No dataSourceId for widget ${widgetId}`);
-      return [];
-    }
+    if (!dataSourceId) return [];
 
     let rawData = data[dataSourceId] || [];
-    console.log(`[SchemaRenderer] Widget ${widgetId}, dataSource: ${dataSourceId}, data length: ${rawData.length}`, rawData);
 
     // Find all filter widgets that target this widget
     const activeFilters = spec.widgets.filter(

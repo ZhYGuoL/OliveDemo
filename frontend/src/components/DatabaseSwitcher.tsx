@@ -13,13 +13,15 @@ interface DatabaseSwitcherProps {
   currentDatabaseType: string | null
   onSwitch: () => void
   onAdd: () => void
+  onDisconnect: () => void
 }
 
-export function DatabaseSwitcher({ 
-  currentDatabaseName, 
-  currentDatabaseType, 
+export function DatabaseSwitcher({
+  currentDatabaseName,
+  currentDatabaseType,
   onSwitch,
-  onAdd 
+  onAdd,
+  onDisconnect
 }: DatabaseSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [connections, setConnections] = useState<DatabaseConnection[]>([])
@@ -59,13 +61,29 @@ export function DatabaseSwitcher({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
       })
-      
+
       if (response.ok) {
         setIsOpen(false)
         onSwitch()
       }
     } catch (err) {
       console.error('Failed to switch connection', err)
+    }
+  }
+
+  const handleDisconnect = async () => {
+    try {
+      const response = await fetch(apiEndpoint('disconnect'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (response.ok) {
+        setIsOpen(false)
+        onDisconnect()
+      }
+    } catch (err) {
+      console.error('Failed to disconnect', err)
     }
   }
 
@@ -79,47 +97,57 @@ export function DatabaseSwitcher({
   }
 
   return (
-    <div className="database-switcher" ref={dropdownRef}>
-      <button 
-        className={`switcher-button ${isOpen ? 'active' : ''}`}
-        onClick={() => setIsOpen(!isOpen)}
-        title="Switch database"
-      >
-        <span className="db-icon">{getIcon(currentDatabaseType)}</span>
-        <span className="db-name">{currentDatabaseName || 'Unknown Database'}</span>
-        <span className="switcher-arrow">▼</span>
-      </button>
+    <div className="database-switcher-wrapper">
+      <div className="database-switcher" ref={dropdownRef}>
+        <button
+          className={`switcher-button ${isOpen ? 'active' : ''}`}
+          onClick={() => setIsOpen(!isOpen)}
+          title="Switch database"
+        >
+          <span className="db-icon">{getIcon(currentDatabaseType)}</span>
+          <span className="db-name">{currentDatabaseName || 'Unknown Database'}</span>
+          <span className="switcher-arrow">▼</span>
+        </button>
 
-      {isOpen && (
-        <div className="switcher-dropdown">
-          <div className="switcher-list">
-            {connections.map((conn) => (
-              <button
-                key={conn.id}
-                className={`switcher-item ${conn.name === currentDatabaseName ? 'active' : ''}`}
-                onClick={() => handleSwitch(conn.id)}
-              >
-                <span className="db-icon-small">🗄️</span>
-                <span className="switcher-item-name">{conn.name}</span>
-                {conn.name === currentDatabaseName && <span className="check-icon">✓</span>}
-              </button>
-            ))}
+        {isOpen && (
+          <div className="switcher-dropdown">
+            <div className="switcher-list">
+              {connections.map((conn) => (
+                <button
+                  key={conn.id}
+                  className={`switcher-item ${conn.name === currentDatabaseName ? 'active' : ''}`}
+                  onClick={() => handleSwitch(conn.id)}
+                >
+                  <span className="db-icon-small">🗄️</span>
+                  <span className="switcher-item-name">{conn.name}</span>
+                  {conn.name === currentDatabaseName && <span className="check-icon">✓</span>}
+                </button>
+              ))}
+            </div>
+
+            <div className="switcher-divider"></div>
+
+            <button
+              className="add-source-button"
+              onClick={() => {
+                setIsOpen(false)
+                onAdd()
+              }}
+            >
+              <span className="plus-icon">+</span>
+              Add new data source
+            </button>
           </div>
-          
-          <div className="switcher-divider"></div>
-          
-          <button 
-            className="add-source-button"
-            onClick={() => {
-              setIsOpen(false)
-              onAdd()
-            }}
-          >
-            <span className="plus-icon">+</span>
-            Add new data source
-          </button>
-        </div>
-      )}
+        )}
+      </div>
+
+      <button
+        className="disconnect-button-inline"
+        onClick={handleDisconnect}
+        title="Disconnect from database"
+      >
+        <span className="disconnect-icon">⏏</span>
+      </button>
     </div>
   )
 }
