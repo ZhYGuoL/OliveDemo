@@ -399,13 +399,19 @@ function AppContent() {
         setAvailableTables([])
         // Clear current result/dashboard
         setResult(null)
-        toast({ description: 'Database disconnected successfully' })
+        // Close chat sidebar
+        setShowChat(false)
+        // Clear chat history
+        setChatHistory([])
+        // Clear any errors
+        setError(null)
+        toast('Database disconnected successfully', 'success')
       } else {
-        toast({ description: 'Failed to disconnect from database', variant: 'error' })
+        toast('Failed to disconnect from database', 'error')
       }
     } catch (err) {
       console.error('Disconnect error:', err)
-      toast({ description: 'Error disconnecting from database', variant: 'error' })
+      toast('Error disconnecting from database', 'error')
     }
   }
 
