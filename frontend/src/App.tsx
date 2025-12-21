@@ -245,8 +245,6 @@ function AppContent() {
       }
 
       const data: DashboardResponse = await response.json()
-      console.log('[App handleSubmit] Received data from API:', data);
-      console.log('[App handleSubmit] Data sources:', Object.keys(data.data), 'with lengths:', Object.entries(data.data).map(([k, v]) => `${k}: ${v?.length ?? 0}`));
 
       // Merge new widgets and data sources with existing result if available
       if (result && result.spec) {
@@ -386,7 +384,32 @@ function AppContent() {
     }
   }
 
-// 
+  const handleDisconnect = async () => {
+    try {
+      const response = await fetch(apiEndpoint('disconnect'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (response.ok) {
+        // Clear database connection state
+        setDbConnected(false)
+        setDatabaseType(null)
+        setDatabaseName(null)
+        setAvailableTables([])
+        // Clear current result/dashboard
+        setResult(null)
+        toast({ description: 'Database disconnected successfully' })
+      } else {
+        toast({ description: 'Failed to disconnect from database', variant: 'error' })
+      }
+    } catch (err) {
+      console.error('Disconnect error:', err)
+      toast({ description: 'Error disconnecting from database', variant: 'error' })
+    }
+  }
+
+//
   const handleDataSourceSelect = (type: 'postgresql' | 'supabase' | 'mysql') => {
     setSelectedDataSource(type)
     setShowDataSourceModal(false)
@@ -484,8 +507,6 @@ function AppContent() {
       }
 
       const data: DashboardResponse = await response.json()
-      console.log('[App handleChatSubmit] Received data from API:', data);
-      console.log('[App handleChatSubmit] Data sources:', Object.keys(data.data), 'with lengths:', Object.entries(data.data).map(([k, v]) => `${k}: ${v?.length ?? 0}`));
 
       // Merge new widgets and data sources with existing result if available
       if (result && result.spec) {
@@ -739,11 +760,12 @@ function AppContent() {
                   />
                   <div className="prompt-meta">
                     {dbConnected ? (
-                      <DatabaseSwitcher 
+                      <DatabaseSwitcher
                         currentDatabaseName={databaseName}
                         currentDatabaseType={databaseType}
                         onSwitch={checkDatabaseConnection}
                         onAdd={() => setShowDataSourceModal(true)}
+                        onDisconnect={handleDisconnect}
                       />
                     ) : (
                       <span className={`db-status ${dbConnected ? 'connected' : 'disconnected'}`}>
@@ -847,11 +869,6 @@ function AppContent() {
                 </div>
               ) : (
                 <div className="dashboard-container">
-                  {(() => {
-                    console.log('[App Render] Rendering SchemaRenderer with result:', result);
-                    console.log('[App Render] Data keys:', Object.keys(result.data), 'with lengths:', Object.entries(result.data).map(([k, v]) => `${k}: ${v?.length ?? 0}`));
-                    return null;
-                  })()}
                   <SchemaRenderer
                     spec={result.spec}
                     data={result.data}
