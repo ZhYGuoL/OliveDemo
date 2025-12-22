@@ -148,7 +148,14 @@ export const TableWidget: React.FC<WidgetProps> = ({ spec, data }) => {
   const INITIAL_ROWS = 5;
 
   // Get columns from spec or data
-  const columns = spec.columns || Object.keys(data[0] || {});
+  // Handle both string[] and object[] formats
+  const rawColumns = spec.columns || Object.keys(data[0] || {});
+  const columns = rawColumns.map((col: any) =>
+    typeof col === 'string' ? col : (col?.field || col?.name || String(col))
+  );
+  const columnLabels = rawColumns.map((col: any) =>
+    typeof col === 'string' ? col : (col?.name || col?.field || String(col))
+  );
 
   // Handle column header click
   const handleSort = (column: string) => {
@@ -208,14 +215,14 @@ export const TableWidget: React.FC<WidgetProps> = ({ spec, data }) => {
         <table className="w-full text-sm text-left">
           <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
             <tr>
-              {columns.map(col => (
+              {columns.map((col, idx) => (
                 <th
-                  key={col}
+                  key={`header-${col}-${idx}`}
                   className="px-6 py-3 cursor-pointer hover:bg-gray-100 transition-colors select-none"
                   onClick={() => handleSort(col)}
                 >
                   <div className="flex items-center gap-1">
-                    <span>{col}</span>
+                    <span>{columnLabels[idx]}</span>
                     {sortColumn === col && (
                       <span className="text-gray-500">
                         {sortDirection === 'asc' ? '↑' : '↓'}
@@ -229,8 +236,8 @@ export const TableWidget: React.FC<WidgetProps> = ({ spec, data }) => {
           <tbody>
             {displayData.map((row, i) => (
               <tr key={i} className="bg-white border-b hover:bg-gray-50">
-                {columns.map(col => (
-                  <td key={col} className="px-6 py-4">{row[col]}</td>
+                {columns.map((col, idx) => (
+                  <td key={`cell-${i}-${idx}`} className="px-6 py-4">{row[col]}</td>
                 ))}
               </tr>
             ))}
