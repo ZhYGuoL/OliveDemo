@@ -61,7 +61,12 @@ def build_system_prompt() -> str:
     9. For Charts, ensure xField and yField exist in the SQL SELECT columns.
     10. For PieChart widgets, use "valueField" instead of "yField" to specify the data column.
     11. If the user asks for a date filter, add a widget with type "Filter" and filterType "dateRange", and list the IDs of the charts it should affect in "targetWidgetIds".
-    12. Return ONLY valid JSON. No markdown, no backticks, no commentary.
+    12. CRITICAL: For ranking/top-N queries (e.g., "top-selling products", "best customers", "highest revenue categories"), you MUST:
+        - Use ORDER BY to sort by the ranking metric in DESC order (e.g., ORDER BY revenue DESC)
+        - Use LIMIT to show only the top N items (typically 10-15 for charts, 5-10 for pie charts)
+        - Example: SELECT "Product", SUM("Revenue"::numeric) AS revenue FROM "sales" GROUP BY "Product" ORDER BY revenue DESC LIMIT 10
+        - This ensures charts are readable and actually show the "top" items, not all items
+    13. Return ONLY valid JSON. No markdown, no backticks, no commentary.
     """
 
 def call_llm(user_prompt: str, db_schema_ddl: str, referenced_tables: set = None) -> str:
