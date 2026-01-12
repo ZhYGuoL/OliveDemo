@@ -52,3 +52,6 @@ data/
 # Kaggle
 .kaggle/
 
+# Scripts (internal setup scripts)
+scripts/
+

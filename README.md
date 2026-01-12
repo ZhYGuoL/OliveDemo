@@ -1,282 +1,224 @@
-# Dashboard Generator
+# OliveDemo - AI-Powered Dashboard Generator
 
-A local dashboard generator that converts natural language prompts into SQL queries and React components.
+Generate interactive dashboards from natural language using AI. Connect to your database, describe what you want to see, and get instant visualizations.
+
+## Features
+
+- 🤖 **AI-Powered**: Uses Google Gemini to understand natural language queries
+- 📊 **Instant Dashboards**: Generate KPIs, charts, and tables automatically
+- 🗄️ **Multi-Database**: Supports PostgreSQL, MySQL, Supabase, and SQLite
+- 🎨 **Interactive UI**: Modern React interface with real-time previews
+- 🔒 **Secure**: Read-only queries, SQL injection protection
 
 ## Architecture
 
-- **Backend**: Python + FastAPI
-- **Frontend**: React + TypeScript
-- **Database**: SQLite (default), PostgreSQL, Supabase, or MySQL
-- **LLM**: Google AI Studio (Gemini API)
+- **Backend**: Python + FastAPI + Google Gemini API
+- **Frontend**: React + TypeScript + Vite
+- **Database**: SQLite (default), PostgreSQL, MySQL, or Supabase
+- **Deployment**: GitHub Pages (frontend) + Render/Railway (backend)
 
-## Prerequisites
+## Quick Start
 
-1. **Python 3.8+** installed
-2. **Node.js 18+** and npm installed
-3. **Google AI Studio API Key** - Get one from [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
+### 1. Prerequisites
 
-## Setup
-
-### 1. Get Google AI Studio API Key
-
-1. Visit [Google AI Studio](https://aistudio.google.com/app/apikey)
-2. Sign in with your Google account
-3. Create a new API key
-4. Copy the API key for use in the backend configuration
+- Python 3.8+
+- Node.js 18+
+- [Google AI Studio API Key](https://aistudio.google.com/app/apikey) (free)
 
 ### 2. Backend Setup
 
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-python init_db.py  # Initialize database with sample data
-```
 
-**Database Configuration:**
-
-The application supports multiple database backends through a flexible adapter system:
-
-**SQLite (Default - No configuration needed):**
-```bash
-# Just run init_db.py - no setup required
-python init_db.py
-```
-
-**PostgreSQL / Supabase:**
-```bash
-# PostgreSQL connection string format:
-export DATABASE_URL=postgresql://username:password@localhost:5432/dbname
-
-# Supabase connection string format:
-export DATABASE_URL=postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
-
-# Then initialize the database:
-python init_db.py
-```
-
-**MySQL:**
-```bash
-# MySQL connection string format:
-export DATABASE_URL=mysql://username:password@localhost:3306/dbname
-
-# Then initialize the database:
-python init_db.py
-```
-
-You can also create a `.env` file in the `backend/` directory:
-```
-# Google AI Studio API Key (required)
+# Create .env file
+cat > .env << EOF
 GOOGLE_API_KEY=your_api_key_here
-
-# Optional: Specify Gemini model (default: gemini-1.5-flash)
 GEMINI_MODEL=gemini-1.5-flash
+EOF
 
-# For PostgreSQL/Supabase
-DATABASE_URL=postgresql://username:password@localhost:5432/dbname
+# Initialize demo database (optional)
+python init_db.py
 
-# For MySQL
-DATABASE_URL=mysql://username:password@localhost:3306/dbname
-
-# Optional: Override SQLite database path (only used if DATABASE_URL is not set)
-DB_PATH=./demo.db
-```
-
-**Note:** SQLite is the default and requires no configuration. It's perfect for local development and demos. For production or multi-user scenarios, use PostgreSQL, Supabase, or MySQL.
-
-Start the backend server:
-```bash
+# Start server
 uvicorn main:app --reload
 ```
 
-The backend will run on `http://localhost:8000`
+Backend runs at `http://localhost:8000`
 
 ### 3. Frontend Setup
 
-In a new terminal:
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-The frontend will run on `http://localhost:5173`
+Frontend runs at `http://localhost:5173`
+
+### 4. Connect Your Database
+
+The app supports multiple databases:
+
+**SQLite** (default - demo data):
+- No configuration needed
+- Perfect for testing
+
+**PostgreSQL / Supabase**:
+```bash
+# In backend/.env
+DATABASE_URL=postgresql://user:password@host:5432/dbname
+```
+
+**MySQL**:
+```bash
+# In backend/.env
+DATABASE_URL=mysql://user:password@host:3306/dbname
+```
 
 ## Usage
 
-1. Ensure you have set your `GOOGLE_API_KEY` in the `.env` file
-2. Start the backend server (from `backend/` directory)
-3. Start the frontend dev server (from `frontend/` directory)
-4. Open `http://localhost:5173` in your browser
-5. Enter a prompt like:
-   - "Show my top 10 expense categories in the last 3 months"
-   - "Build a dashboard of my monthly expenses by category"
-   - "Display total spending per category as a bar chart"
-6. View the generated SQL, data preview, and React component code
-
-## Project Structure
-
-```
-DashboardDemo/
-├── backend/
-│   ├── main.py              # FastAPI server
-│   ├── database.py          # Database layer (schema introspection, SQL execution)
-│   ├── llm_service.py       # Google AI Studio (Gemini) integration
-│   ├── init_db.py           # Database initialization script
-│   ├── requirements.txt     # Python dependencies
-│   └── demo.db        # SQLite database (created after init_db.py)
-├── frontend/
-│   ├── src/
-│   │   ├── App.tsx          # Main React component
-│   │   ├── App.css          # Styles
-│   │   ├── main.tsx         # Entry point
-│   │   └── index.css        # Global styles
-│   ├── package.json         # Node dependencies
-│   └── vite.config.ts       # Vite configuration
-└── README.md
-```
-
-## API Endpoints
-
-### `GET /health`
-Health check endpoint.
-
-**Response:**
-```json
-{ "status": "ok" }
-```
-
-### `POST /generate_dashboard`
-Generate SQL query and React component from natural language prompt.
-
-**Request:**
-```json
-{
-  "prompt": "Show my top 10 expense categories"
-}
-```
-
-**Response:**
-```json
-{
-  "sql": "SELECT category, SUM(amount) as total FROM expenses GROUP BY category ORDER BY total DESC LIMIT 10",
-  "reactComponent": "export function Dashboard({ data }: { data: any[] }) { ... }",
-  "dataPreview": [
-    { "category": "Food", "total": 1234.56 },
-    ...
-  ]
-}
-```
-
-## Security Features
-
-- Only SELECT queries are allowed (no INSERT, UPDATE, DELETE, DROP, etc.)
-- SQL injection protection via parameterized queries
-- Query validation before execution
-- Results limited to 100 rows by default
+1. Open `http://localhost:5173`
+2. Connect to a database (or use default SQLite demo)
+3. Type a natural language query:
+   - "Show total revenue by month"
+   - "Top 10 customers by orders"
+   - "Product category breakdown as a pie chart"
+4. View your generated dashboard!
 
 ## Deployment
 
-This application can be deployed with the frontend on GitHub Pages and the backend on a cloud service.
+### Option 1: Quick Deploy (GitHub Pages + Render)
 
-### Deploy Frontend to GitHub Pages
+**Deploy Backend** (5 minutes):
+1. Go to [render.com](https://render.com) and sign in
+2. New Web Service → Connect your repo
+3. Set environment variables:
+   ```
+   GOOGLE_API_KEY=your_key
+   CORS_ORIGINS=https://yourusername.github.io
+   ```
+4. Copy your backend URL (e.g., `https://yourapp.onrender.com`)
 
-1. **Enable GitHub Pages** in your repository:
-   - Go to Settings > Pages
-   - Under "Build and deployment", select "GitHub Actions" as the source
+**Deploy Frontend** (automatic):
+1. Create `frontend/.env.production`:
+   ```
+   VITE_API_URL=https://yourapp.onrender.com
+   ```
+2. Commit and push to `main` branch
+3. GitHub Actions automatically deploys to Pages
+4. Visit `https://yourusername.github.io/OliveDemo/`
 
-2. **Configure environment variables**:
-   - Create `frontend/.env.production` with your backend URL:
-     ```bash
-     VITE_API_URL=https://your-backend-url.onrender.com
-     ```
+### Option 2: Railway (Alternative Backend)
 
-3. **Deploy**:
-   - Push to the `main` branch
-   - GitHub Actions will automatically build and deploy
-   - Your app will be available at: `https://yourusername.github.io/OliveDemo/`
-
-Alternatively, deploy manually:
 ```bash
-cd frontend
-npm install gh-pages --save-dev
-npm run deploy
-```
-
-### Deploy Backend to Render
-
-1. **Create a Render account** at [render.com](https://render.com)
-
-2. **Create a new Web Service**:
-   - Connect your GitHub repository
-   - Render will detect the `render.yaml` configuration
-
-3. **Set environment variables** in Render dashboard:
-   - `GOOGLE_API_KEY`: Your Google AI Studio API key
-   - `CORS_ORIGINS`: Add your GitHub Pages URL (e.g., `https://yourusername.github.io`)
-   - `DATABASE_URL`: (Optional) Your database connection string
-
-4. **Deploy**: Render will automatically deploy when you push to main
-
-### Alternative Backend Hosting Options
-
-**Railway**:
-```bash
-# Install Railway CLI
 npm install -g @railway/cli
-
-# Login and deploy
 railway login
 railway init
 railway up
 ```
 
-**Vercel** (Serverless):
-- Install Vercel CLI: `npm install -g vercel`
-- Run `vercel` in the project root
-- Configure environment variables in Vercel dashboard
+Set environment variables in Railway dashboard.
 
-**Heroku**:
-```bash
-# Create Procfile in backend directory
-echo "web: uvicorn main:app --host 0.0.0.0 --port \$PORT" > backend/Procfile
-
-# Deploy
-heroku create your-app-name
-git push heroku main
-```
-
-### Environment Variables Summary
+### Environment Variables
 
 **Backend** (`backend/.env`):
-- `GOOGLE_API_KEY`: Required - Your Google AI Studio API key
-- `GEMINI_MODEL`: Optional - Defaults to `gemini-1.5-flash`
-- `DATABASE_URL`: Optional - Database connection string (defaults to SQLite)
-- `CORS_ORIGINS`: Optional - Comma-separated allowed origins for CORS
+```bash
+GOOGLE_API_KEY=your_api_key          # Required
+GEMINI_MODEL=gemini-1.5-flash        # Optional
+DATABASE_URL=postgresql://...        # Optional (defaults to SQLite)
+CORS_ORIGINS=https://your-site.com   # Optional (for production)
+```
 
 **Frontend** (`frontend/.env.production`):
-- `VITE_API_URL`: Required - Your backend API URL
+```bash
+VITE_API_URL=https://your-backend-url.onrender.com
+```
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/connect` | POST | Connect to database |
+| `/disconnect` | POST | Disconnect from database |
+| `/schema` | GET | Get database schema |
+| `/generate_dashboard` | POST | Generate dashboard from prompt |
+| `/suggestions` | GET | Get AI-generated dashboard ideas |
+
+## Project Structure
+
+```
+OliveDemo/
+├── backend/
+│   ├── main.py                  # FastAPI server
+│   ├── llm_service.py          # Google Gemini integration
+│   ├── database.py             # Database abstraction layer
+│   ├── database_adapters.py    # DB-specific adapters
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── App.tsx            # Main app component
+│   │   ├── components/        # UI components
+│   │   └── config.ts          # API configuration
+│   ├── package.json
+│   └── vite.config.ts
+├── .github/workflows/
+│   └── deploy.yml             # GitHub Pages deployment
+└── render.yaml                 # Render configuration
+```
 
 ## Troubleshooting
 
-**LLM/API errors:**
-- Verify your `GOOGLE_API_KEY` is set correctly in the `.env` file
-- Check that your API key is valid at [Google AI Studio](https://aistudio.google.com/app/apikey)
-- Ensure you have API quota available (free tier has rate limits)
-- Check the backend logs for specific error messages
+**"Not allowed to request resource" / CORS Error**:
+- ✅ **Local dev**: Frontend at `localhost:5173` → Backend at `localhost:8000` works automatically
+- ❌ **Deployed GitHub Pages** → `localhost:8000` won't work (different origins)
+- ✅ **Solution**: Deploy backend to Render and set `VITE_API_URL` in production
 
-**Database errors:**
-- Run `python backend/init_db.py` to recreate the database
-- Check file permissions in the `backend/` directory
-- For PostgreSQL/Supabase: Ensure the database exists and credentials are correct
-- For PostgreSQL/Supabase: Verify `psycopg2-binary` is installed: `pip install psycopg2-binary`
-- For MySQL: Ensure the database exists and credentials are correct
-- For MySQL: Verify `pymysql` is installed: `pip install pymysql`
-- Verify your `DATABASE_URL` format matches the expected connection string format
+**Backend errors**:
+- Check `GOOGLE_API_KEY` is set correctly
+- Verify API key at [Google AI Studio](https://aistudio.google.com/app/apikey)
+- Check backend logs: `uvicorn main:app --reload`
 
-**Frontend can't reach backend:**
-- Verify backend is running on port 8000
-- Check CORS settings in `backend/main.py`
-- Ensure no firewall is blocking localhost connections
+**Database connection fails**:
+- Verify `DATABASE_URL` format is correct
+- Check database credentials and network access
+- For SQLite: Ensure `init_db.py` ran successfully
 
+**Build fails on GitHub Actions**:
+- Check Actions tab for error details
+- Ensure `package-lock.json` is committed
+- Verify environment variables are set
+
+## Security
+
+- ✅ Read-only queries (SELECT only)
+- ✅ SQL injection protection
+- ✅ Query validation before execution
+- ✅ Results limited to 100 rows
+- ✅ CORS protection
+
+## Tech Stack
+
+**Backend**:
+- FastAPI - Web framework
+- Google Gemini API - LLM for dashboard generation
+- Psycopg2 / PyMySQL - Database drivers
+- Python-dotenv - Environment management
+
+**Frontend**:
+- React 18 - UI framework
+- TypeScript - Type safety
+- Vite - Build tool
+- Recharts - Chart visualization
+- TipTap - Rich text editor
+
+## License
+
+MIT
+
+## Contributing
+
+Contributions welcome! Please open an issue or PR.
