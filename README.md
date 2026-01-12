@@ -5,31 +5,24 @@ A local dashboard generator that converts natural language prompts into SQL quer
 ## Architecture
 
 - **Backend**: Python + FastAPI
-- **Frontend**: React + TypeScript  
+- **Frontend**: React + TypeScript
 - **Database**: SQLite (default), PostgreSQL, Supabase, or MySQL
-- **LLM**: Ollama (local)
+- **LLM**: Google AI Studio (Gemini API)
 
 ## Prerequisites
 
 1. **Python 3.8+** installed
 2. **Node.js 18+** and npm installed
-3. **Ollama** installed and running locally
+3. **Google AI Studio API Key** - Get one from [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
 
 ## Setup
 
-### 1. Install and Start Ollama
+### 1. Get Google AI Studio API Key
 
-Download and install Ollama from [https://ollama.ai](https://ollama.ai)
-
-Start Ollama:
-```bash
-ollama serve
-```
-
-Pull a model (recommended: llama3.2 or llama3.1):
-```bash
-ollama pull llama3.2
-```
+1. Visit [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. Sign in with your Google account
+3. Create a new API key
+4. Copy the API key for use in the backend configuration
 
 ### 2. Backend Setup
 
@@ -74,6 +67,12 @@ python init_db.py
 
 You can also create a `.env` file in the `backend/` directory:
 ```
+# Google AI Studio API Key (required)
+GOOGLE_API_KEY=your_api_key_here
+
+# Optional: Specify Gemini model (default: gemini-1.5-flash)
+GEMINI_MODEL=gemini-1.5-flash
+
 # For PostgreSQL/Supabase
 DATABASE_URL=postgresql://username:password@localhost:5432/dbname
 
@@ -106,7 +105,7 @@ The frontend will run on `http://localhost:5173`
 
 ## Usage
 
-1. Ensure Ollama is running (`ollama serve`)
+1. Ensure you have set your `GOOGLE_API_KEY` in the `.env` file
 2. Start the backend server (from `backend/` directory)
 3. Start the frontend dev server (from `frontend/` directory)
 4. Open `http://localhost:5173` in your browser
@@ -123,7 +122,7 @@ DashboardDemo/
 ├── backend/
 │   ├── main.py              # FastAPI server
 │   ├── database.py          # Database layer (schema introspection, SQL execution)
-│   ├── llm_service.py       # Ollama LLM integration
+│   ├── llm_service.py       # Google AI Studio (Gemini) integration
 │   ├── init_db.py           # Database initialization script
 │   ├── requirements.txt     # Python dependencies
 │   └── demo.db        # SQLite database (created after init_db.py)
@@ -177,12 +176,95 @@ Generate SQL query and React component from natural language prompt.
 - Query validation before execution
 - Results limited to 100 rows by default
 
+## Deployment
+
+This application can be deployed with the frontend on GitHub Pages and the backend on a cloud service.
+
+### Deploy Frontend to GitHub Pages
+
+1. **Enable GitHub Pages** in your repository:
+   - Go to Settings > Pages
+   - Under "Build and deployment", select "GitHub Actions" as the source
+
+2. **Configure environment variables**:
+   - Create `frontend/.env.production` with your backend URL:
+     ```bash
+     VITE_API_URL=https://your-backend-url.onrender.com
+     ```
+
+3. **Deploy**:
+   - Push to the `main` branch
+   - GitHub Actions will automatically build and deploy
+   - Your app will be available at: `https://yourusername.github.io/OliveDemo/`
+
+Alternatively, deploy manually:
+```bash
+cd frontend
+npm install gh-pages --save-dev
+npm run deploy
+```
+
+### Deploy Backend to Render
+
+1. **Create a Render account** at [render.com](https://render.com)
+
+2. **Create a new Web Service**:
+   - Connect your GitHub repository
+   - Render will detect the `render.yaml` configuration
+
+3. **Set environment variables** in Render dashboard:
+   - `GOOGLE_API_KEY`: Your Google AI Studio API key
+   - `CORS_ORIGINS`: Add your GitHub Pages URL (e.g., `https://yourusername.github.io`)
+   - `DATABASE_URL`: (Optional) Your database connection string
+
+4. **Deploy**: Render will automatically deploy when you push to main
+
+### Alternative Backend Hosting Options
+
+**Railway**:
+```bash
+# Install Railway CLI
+npm install -g @railway/cli
+
+# Login and deploy
+railway login
+railway init
+railway up
+```
+
+**Vercel** (Serverless):
+- Install Vercel CLI: `npm install -g vercel`
+- Run `vercel` in the project root
+- Configure environment variables in Vercel dashboard
+
+**Heroku**:
+```bash
+# Create Procfile in backend directory
+echo "web: uvicorn main:app --host 0.0.0.0 --port \$PORT" > backend/Procfile
+
+# Deploy
+heroku create your-app-name
+git push heroku main
+```
+
+### Environment Variables Summary
+
+**Backend** (`backend/.env`):
+- `GOOGLE_API_KEY`: Required - Your Google AI Studio API key
+- `GEMINI_MODEL`: Optional - Defaults to `gemini-1.5-flash`
+- `DATABASE_URL`: Optional - Database connection string (defaults to SQLite)
+- `CORS_ORIGINS`: Optional - Comma-separated allowed origins for CORS
+
+**Frontend** (`frontend/.env.production`):
+- `VITE_API_URL`: Required - Your backend API URL
+
 ## Troubleshooting
 
-**Backend can't connect to Ollama:**
-- Ensure Ollama is running: `ollama serve`
-- Check that the model is pulled: `ollama list`
-- Verify Ollama is accessible at `http://localhost:11434`
+**LLM/API errors:**
+- Verify your `GOOGLE_API_KEY` is set correctly in the `.env` file
+- Check that your API key is valid at [Google AI Studio](https://aistudio.google.com/app/apikey)
+- Ensure you have API quota available (free tier has rate limits)
+- Check the backend logs for specific error messages
 
 **Database errors:**
 - Run `python backend/init_db.py` to recreate the database
