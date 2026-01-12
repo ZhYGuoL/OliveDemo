@@ -73,17 +73,26 @@ export function DatabaseSwitcher({
 
   const handleDisconnect = async () => {
     try {
+      // Add timeout to prevent hanging
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 3000) // 3 second timeout
+
       const response = await fetch(apiEndpoint('disconnect'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal
       })
 
-      if (response.ok) {
-        setIsOpen(false)
-        onDisconnect()
-      }
+      clearTimeout(timeoutId)
+
+      // Always close dropdown and trigger disconnect callback
+      setIsOpen(false)
+      onDisconnect()
     } catch (err) {
-      console.error('Failed to disconnect', err)
+      // Even if request fails, trigger disconnect callback to clear UI state
+      console.warn('Disconnect request failed or timed out, clearing UI state anyway', err)
+      setIsOpen(false)
+      onDisconnect()
     }
   }
 

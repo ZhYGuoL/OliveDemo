@@ -386,10 +386,17 @@ function AppContent() {
 
   const handleDisconnect = async () => {
     try {
+      // Add timeout to prevent hanging
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+
       const response = await fetch(apiEndpoint('disconnect'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal
       })
+
+      clearTimeout(timeoutId)
 
       if (response.ok) {
         // Clear database connection state
@@ -410,8 +417,24 @@ function AppContent() {
         toast('Failed to disconnect from database', 'error')
       }
     } catch (err) {
-      console.error('Disconnect error:', err)
-      toast('Error disconnecting from database', 'error')
+      // Even if request fails or times out, clear the local state
+      // This ensures the UI responds quickly
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.warn('Disconnect request timed out, clearing local state anyway')
+      } else {
+        console.error('Disconnect error:', err)
+      }
+
+      // Clear state regardless of backend response
+      setDbConnected(false)
+      setDatabaseType(null)
+      setDatabaseName(null)
+      setAvailableTables([])
+      setResult(null)
+      setShowChat(false)
+      setChatHistory([])
+      setError(null)
+      toast('Database disconnected', 'success')
     }
   }
 

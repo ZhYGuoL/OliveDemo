@@ -148,16 +148,10 @@ async def switch_connection_endpoint(request: Dict[str, str]):
 @app.post("/disconnect")
 async def disconnect_database():
     """Disconnect from the current database."""
-    try:
-        database.clear_database_connection()
-        logger.info("Database disconnected successfully")
-        return {"status": "disconnected", "message": "Database disconnected successfully"}
-    except Exception as e:
-        logger.error(f"Disconnect error: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to disconnect: {str(e)}"
-        )
+    # Fast disconnect - just clear the connection state
+    database.clear_database_connection()
+    logger.info("Database disconnected successfully")
+    return {"status": "disconnected"}
 
 @app.get("/schema")
 async def get_schema():
@@ -215,7 +209,7 @@ async def get_dashboard_suggestions():
         # This allows "More ideas" button to generate new suggestions
         logger.info("Generating new suggestions with LLM")
         suggestions = llm_service.generate_dashboard_suggestions(schema, table_names)
-        
+
         return {"suggestions": suggestions}
     except RuntimeError as e:
         # No database connected
@@ -225,20 +219,6 @@ async def get_dashboard_suggestions():
         logger.error(f"Failed to generate suggestions: {str(e)}", exc_info=True)
         # Return empty suggestions on error rather than failing
         return {"suggestions": []}
-
-@app.post("/disconnect")
-async def disconnect_database():
-    """Disconnect from the current database."""
-    try:
-        database.clear_database_connection()
-        logger.info("Database disconnected successfully")
-        return {"status": "disconnected", "message": "Database disconnected successfully"}
-    except Exception as e:
-        logger.error(f"Database disconnection error: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to disconnect database: {str(e)}"
-        )
 
 @app.post("/generate_dashboard", response_model=GenerateDashboardResponse)
 async def generate_dashboard(request: GenerateDashboardRequest):
