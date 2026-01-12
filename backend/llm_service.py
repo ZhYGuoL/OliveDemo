@@ -1,14 +1,20 @@
 """LLM service for generating SQL and React components."""
 import os
-import httpx
 import json
 import logging
 from typing import Dict, Any
+import google.generativeai as genai
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+# Configure Google AI Studio
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+
+if GOOGLE_API_KEY:
+    genai.configure(api_key=GOOGLE_API_KEY)
+else:
+    logger.warning("GOOGLE_API_KEY not set. LLM functionality will not work.")
 
 def build_system_prompt() -> str:
     """Build the system prompt for the LLM."""
@@ -71,16 +77,16 @@ def build_system_prompt() -> str:
 
 def call_llm(user_prompt: str, db_schema_ddl: str, referenced_tables: set = None) -> str:
     """
-    Call the local Ollama LLM API.
+    Call the Google AI Studio (Gemini) API.
     """
     system_prompt = build_system_prompt()
-    
+
     # Build context about referenced tables
     table_context = ""
     if referenced_tables:
         table_list = ", ".join(sorted(referenced_tables))
         table_context = f"\nNOTE: The user specifically referenced these tables: {table_list}. Focus on these tables in your queries.\n"
-    
+
     full_prompt = f"""{system_prompt}
 
 Database Schema:
@@ -93,21 +99,22 @@ Generate the Dashboard JSON spec.
 """
 
     try:
-        response = httpx.post(
-            f"{OLLAMA_BASE_URL}/api/generate",
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": full_prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.1,
-                }
-            },
-            timeout=60.0
+        model = genai.GenerativeModel(GEMINI_MODEL)
+
+        # Configure generation parameters
+        generation_config = {
+            "temperature": 0.1,
+            "top_p": 0.95,
+            "top_k": 40,
+            "max_output_tokens": 8192,
+        }
+
+        response = model.generate_content(
+            full_prompt,
+            generation_config=generation_config
         )
-        response.raise_for_status()
-        result = response.json()
-        return result.get("response", "")
+
+        return response.text
     except Exception as e:
         logger.error(f"LLM call failed: {e}")
         raise
@@ -117,22 +124,22 @@ def parse_llm_response(response_text: str) -> Dict[str, Any]:
     Parse JSON from LLM response.
     """
     import re
-    
+
     logger.info(f"LLM raw response: {response_text[:1000]}")
-    
+
     try:
         # Extract JSON object
         start_idx = response_text.find("{")
         end_idx = response_text.rfind("}")
-        
+
         if start_idx == -1 or end_idx == -1:
             raise ValueError("No JSON object found")
-            
+
         json_str = response_text[start_idx:end_idx + 1]
-        
+
         # Clean control characters
         json_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', json_str)
-        
+
         return json.loads(json_str)
     except Exception as e:
         logger.error(f"JSON parse error: {e}")
@@ -210,35 +217,35 @@ Generate exactly 4 dashboard suggestions as a JSON array.
 """
 
     try:
-        response = httpx.post(
-            f"{OLLAMA_BASE_URL}/api/generate",
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": full_prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.8,  # Higher temperature for more varied suggestions
-                    "num_predict": 2500,  # Allow more tokens for detailed suggestions
-                }
-            },
-            timeout=60.0
+        model = genai.GenerativeModel(GEMINI_MODEL)
+
+        # Configure generation parameters with higher temperature for varied suggestions
+        generation_config = {
+            "temperature": 0.8,
+            "top_p": 0.95,
+            "top_k": 40,
+            "max_output_tokens": 8192,
+        }
+
+        response = model.generate_content(
+            full_prompt,
+            generation_config=generation_config
         )
-        response.raise_for_status()
-        result = response.json()
-        response_text = result.get("response", "")
-        
+
+        response_text = response.text
+
         # Parse JSON array from response
         import re
         start_idx = response_text.find("[")
         end_idx = response_text.rfind("]")
-        
+
         if start_idx == -1 or end_idx == -1:
             logger.warning("No JSON array found in suggestions response, returning defaults")
             return get_default_suggestions(table_names)
-        
+
         json_str = response_text[start_idx:end_idx + 1]
         json_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', json_str)
-        
+
         suggestions = json.loads(json_str)
 
         # Validate and ensure we have suggestions
@@ -246,7 +253,7 @@ Generate exactly 4 dashboard suggestions as a JSON array.
             return get_default_suggestions(table_names)
 
         return suggestions[:4]  # Limit to exactly 4 suggestions
-        
+
     except Exception as e:
         logger.error(f"Failed to generate suggestions: {e}")
         return get_default_suggestions(table_names)
