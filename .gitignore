@@ -14,7 +14,7 @@ build/
 # Environment variables
 .env
 .env.local
-.env.production
+# Note: .env.production contains the public backend URL, safe to commit
 
 # Database
 *.db
