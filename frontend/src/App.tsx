@@ -852,7 +852,7 @@ function AppContent() {
               {showSQL ? (
                 <div className="result-panel">
                   <h2>SQL Queries</h2>
-                  {result.spec.dataSources.map((dataSource, index) => (
+                  {result.spec.dataSources.map((dataSource, _index) => (
                     <div key={dataSource.id} className="sql-query-section">
                       <h3 className="sql-query-title">
                         {dataSource.id}

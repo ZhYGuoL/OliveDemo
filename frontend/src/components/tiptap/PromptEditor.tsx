@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useEditor, EditorContent, Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Mention from '@tiptap/extension-mention'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -46,7 +46,7 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
       }),
     ],
     content: value, // Set initial content
-    onUpdate: ({ editor }) => {
+    onUpdate: ({ editor }: { editor: Editor }) => {
       // Get text content to send back to parent
       // Note: TipTap's getText() usually separates blocks with newlines.
       // We might want to keep the HTML if we were doing rich text persistence,

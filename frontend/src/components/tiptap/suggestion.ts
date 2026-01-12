@@ -14,7 +14,7 @@ interface SuggestionProps {
   event?: KeyboardEvent
 }
 
-export const getSuggestionOptions = (itemsOrGetter: string[] | (() => string[]), isLoading: boolean = false) => ({
+export const getSuggestionOptions = (itemsOrGetter: string[] | (() => string[]), _isLoading: boolean = false) => ({
   items: ({ query }: { query: string }) => {
     const items = typeof itemsOrGetter === 'function' ? itemsOrGetter() : itemsOrGetter
     console.log('Suggestion items - all:', items, 'query:', query)
