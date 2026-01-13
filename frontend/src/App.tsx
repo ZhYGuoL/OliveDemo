@@ -77,7 +77,7 @@ function AppContent() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Logout handler
+  // Logout handler (TODO: Add logout button to UI)
   const handleLogout = async () => {
     await supabase.auth.signOut()
     setDbConnected(false)
@@ -89,7 +89,7 @@ function AppContent() {
     setChatHistory([])
   }
 
-  // Helper to get auth headers
+  // Helper to get auth headers (TODO: Use in API calls)
   const getAuthHeaders = async () => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     const { data: { session } } = await supabase.auth.getSession()
@@ -98,6 +98,10 @@ function AppContent() {
     }
     return headers
   }
+
+  // Prevent unused variable warnings (these will be used in future updates)
+  void handleLogout
+  void getAuthHeaders
 
   const LOCAL_STORAGE_KEY = 'chatSessions'
   const MAX_SESSIONS = 20

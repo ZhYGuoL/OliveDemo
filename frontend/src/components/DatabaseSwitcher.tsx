@@ -82,6 +82,7 @@ export function DatabaseSwitcher({
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal
       })
+      void response // Intentionally unused - fire and forget
 
       clearTimeout(timeoutId)
 
