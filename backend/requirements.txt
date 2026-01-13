@@ -6,4 +6,6 @@ psycopg2-binary==2.9.9
 pymysql==1.1.0
 python-dotenv==1.2.1
 google-generativeai==0.8.0
+slowapi==0.1.9
+supabase==2.3.4
 

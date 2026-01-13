@@ -1,13 +1,18 @@
 """FastAPI backend server."""
 import logging
 import os
-from fastapi import FastAPI, HTTPException
+from datetime import timedelta
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import database
 import llm_service
+import auth
 
 # Load environment variables from .env file
 load_dotenv()
@@ -15,7 +20,11 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="Dashboard Generator API")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS middleware for frontend
 allowed_origins = os.getenv(
@@ -42,14 +51,97 @@ class ConnectRequest(BaseModel):
     database_url: str
 
 @app.get("/health")
-async def health():
+@limiter.limit("60/minute")
+async def health(request: Request):
     """Health check endpoint."""
     return {"status": "ok"}
 
+@app.get("/user/connections")
+@limiter.limit("30/minute")
+async def get_user_connections(request: Request, current_user: dict = Depends(auth.get_current_user)):
+    """Get all saved database connections for the current user."""
+    from supabase_client import get_supabase_client
+    supabase = get_supabase_client()
+
+    response = supabase.table("saved_connections").select("*").eq("user_id", current_user["id"]).execute()
+    return {"connections": response.data}
+
+@app.post("/user/connections")
+@limiter.limit("10/minute")
+async def save_user_connection(request: Request, connection: dict, current_user: dict = Depends(auth.get_current_user)):
+    """Save a database connection for the current user."""
+    from supabase_client import get_supabase_client
+    supabase = get_supabase_client()
+
+    data = {
+        "user_id": current_user["id"],
+        "name": connection.get("name"),
+        "database_type": connection.get("database_type"),
+        "database_url": connection.get("database_url")
+    }
+
+    response = supabase.table("saved_connections").insert(data).execute()
+    return {"connection": response.data[0] if response.data else None}
+
+@app.delete("/user/connections/{connection_id}")
+@limiter.limit("10/minute")
+async def delete_user_connection(request: Request, connection_id: str, current_user: dict = Depends(auth.get_current_user)):
+    """Delete a saved database connection."""
+    from supabase_client import get_supabase_client
+    supabase = get_supabase_client()
+
+    response = supabase.table("saved_connections").delete().eq("id", connection_id).eq("user_id", current_user["id"]).execute()
+    return {"success": True}
+
+@app.get("/user/chats")
+@limiter.limit("30/minute")
+async def get_user_chats(request: Request, current_user: dict = Depends(auth.get_current_user)):
+    """Get all chat sessions for the current user."""
+    from supabase_client import get_supabase_client
+    supabase = get_supabase_client()
+
+    response = supabase.table("chat_sessions").select("*").eq("user_id", current_user["id"]).order("updated_at", desc=True).limit(50).execute()
+    return {"chats": response.data}
+
+@app.post("/user/chats")
+@limiter.limit("20/minute")
+async def save_user_chat(request: Request, chat: dict, current_user: dict = Depends(auth.get_current_user)):
+    """Save or update a chat session."""
+    from supabase_client import get_supabase_client
+    supabase = get_supabase_client()
+
+    chat_id = chat.get("id")
+    data = {
+        "user_id": current_user["id"],
+        "title": chat.get("title", "New Chat"),
+        "messages": chat.get("messages", []),
+        "dashboards": chat.get("dashboards", [])
+    }
+
+    if chat_id:
+        # Update existing chat
+        response = supabase.table("chat_sessions").update(data).eq("id", chat_id).eq("user_id", current_user["id"]).execute()
+    else:
+        # Create new chat
+        response = supabase.table("chat_sessions").insert(data).execute()
+
+    return {"chat": response.data[0] if response.data else None}
+
+@app.delete("/user/chats/{chat_id}")
+@limiter.limit("10/minute")
+async def delete_user_chat(request: Request, chat_id: str, current_user: dict = Depends(auth.get_current_user)):
+    """Delete a chat session."""
+    from supabase_client import get_supabase_client
+    supabase = get_supabase_client()
+
+    response = supabase.table("chat_sessions").delete().eq("id", chat_id).eq("user_id", current_user["id"]).execute()
+    return {"success": True}
+
 @app.post("/connect")
-async def connect_database(request: ConnectRequest):
+@limiter.limit("10/minute")
+async def connect_database(request: Request, connect_request: ConnectRequest, current_user: str = Depends(auth.get_current_user)):
     """Connect to a database by setting the DATABASE_URL."""
-    logger.info(f"Connection request received for: {request.database_url.split('@')[1] if '@' in request.database_url else 'database'}")
+    logger.info(f"Connection request received for: {connect_request.database_url.split('@')[1] if '@' in connect_request.database_url else 'database'}")
     
     try:
         # Validate the connection string by trying to create an adapter
@@ -62,7 +154,7 @@ async def connect_database(request: ConnectRequest):
             """Synchronous connection test function."""
             logger.info("Starting connection test...")
             try:
-                adapter = get_database_adapter(database_url=request.database_url, db_path=None)
+                adapter = get_database_adapter(database_url=connect_request.database_url, db_path=None)
                 logger.info("Adapter created, attempting connection...")
                 conn = adapter.connect()  # This already has connect_timeout=5
                 logger.info("Connection established, testing query...")
@@ -90,7 +182,7 @@ async def connect_database(request: ConnectRequest):
                 await asyncio.wait_for(future, timeout=15.0)
             logger.info("Connection test passed")
         except asyncio.TimeoutError:
-            logger.error(f"Connection timeout for: {request.database_url.split('@')[1] if '@' in request.database_url else request.database_url}")
+            logger.error(f"Connection timeout for: {connect_request.database_url.split('@')[1] if '@' in connect_request.database_url else connect_request.database_url}")
             raise HTTPException(
                 status_code=400,
                 detail="Connection timeout. Please check your database is running and accessible."
@@ -103,9 +195,9 @@ async def connect_database(request: ConnectRequest):
             )
         
         # Set the database connection using the module function (persists until manually disconnected)
-        database.set_database_url(request.database_url)
+        database.set_database_url(connect_request.database_url)
         
-        logger.info(f"Database connected successfully: {request.database_url.split('@')[1] if '@' in request.database_url else 'connected'}")
+        logger.info(f"Database connected successfully: {connect_request.database_url.split('@')[1] if '@' in connect_request.database_url else 'connected'}")
         
         # Return connection info
         return {
@@ -124,12 +216,14 @@ async def connect_database(request: ConnectRequest):
         )
 
 @app.get("/connections")
-async def get_connections():
+@limiter.limit("20/minute")
+async def get_connections(request: Request, current_user: str = Depends(auth.get_current_user)):
     """Get list of saved database connections."""
     return {"connections": database.get_connections()}
 
 @app.post("/switch_connection")
-async def switch_connection_endpoint(request: Dict[str, str]):
+@limiter.limit("10/minute")
+async def switch_connection_endpoint(req: Request, request: Dict[str, str], current_user: str = Depends(auth.get_current_user)):
     """Switch to a saved connection by ID."""
     connection_id = request.get("id")
     if not connection_id:
@@ -146,7 +240,8 @@ async def switch_connection_endpoint(request: Dict[str, str]):
         raise HTTPException(status_code=404, detail="Connection not found")
 
 @app.post("/disconnect")
-async def disconnect_database():
+@limiter.limit("10/minute")
+async def disconnect_database(request: Request, current_user: str = Depends(auth.get_current_user)):
     """Disconnect from the current database."""
     # Fast disconnect - just clear the connection state
     database.clear_database_connection()
@@ -154,7 +249,8 @@ async def disconnect_database():
     return {"status": "disconnected"}
 
 @app.get("/schema")
-async def get_schema():
+@limiter.limit("30/minute")
+async def get_schema(request: Request, current_user: str = Depends(auth.get_current_user)):
     """Get database schema to verify connection."""
     try:
         # Check if database is connected
@@ -190,7 +286,8 @@ async def get_schema():
         )
 
 @app.get("/suggestions")
-async def get_dashboard_suggestions():
+@limiter.limit("10/minute")
+async def get_dashboard_suggestions(request: Request, current_user: str = Depends(auth.get_current_user)):
     """Get dashboard suggestions based on the connected database schema."""
     try:
         # Check if database is connected
@@ -221,7 +318,8 @@ async def get_dashboard_suggestions():
         return {"suggestions": []}
 
 @app.post("/generate_dashboard", response_model=GenerateDashboardResponse)
-async def generate_dashboard(request: GenerateDashboardRequest):
+@limiter.limit("10/minute")
+async def generate_dashboard(req: Request, request: GenerateDashboardRequest, current_user: str = Depends(auth.get_current_user)):
     """
     Generate dashboard spec and fetch data.
     """

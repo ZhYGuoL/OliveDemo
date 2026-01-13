@@ -7,6 +7,8 @@ import { ConnectionForm } from './components/ConnectionForm'
 import { DatabaseSwitcher } from './components/DatabaseSwitcher'
 import { PromptEditor } from './components/tiptap/PromptEditor'
 import { DashboardSuggestions } from './components/DashboardSuggestions'
+import { Login } from './components/Login'
+import { supabase } from './supabaseClient'
 import { apiEndpoint } from './config'
 import { DashboardSpec } from './types/dashboard'
 import { ToastProvider, useToast } from './components/ui/ToastContext'
@@ -34,6 +36,10 @@ interface ChatSession {
 }
 
 function AppContent() {
+  // Authentication state
+  const [session, setSession] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
   const [prompt, setPrompt] = useState('Build a table for me to see all my users.')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -54,6 +60,44 @@ function AppContent() {
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const { toast, dismiss } = useToast()
+
+  // Check for existing Supabase session on mount
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      setIsLoading(false)
+    })
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // Logout handler
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    setDbConnected(false)
+    setDatabaseType(null)
+    setDatabaseName(null)
+    setAvailableTables([])
+    setResult(null)
+    setShowChat(false)
+    setChatHistory([])
+  }
+
+  // Helper to get auth headers
+  const getAuthHeaders = async () => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`
+    }
+    return headers
+  }
 
   const LOCAL_STORAGE_KEY = 'chatSessions'
   const MAX_SESSIONS = 20
@@ -647,6 +691,21 @@ function AppContent() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Show loading state while checking auth
+  if (isLoading) {
+    return (
+      <div className="app-loading">
+        <div className="loading-spinner">🤖</div>
+        <p>Loading...</p>
+      </div>
+    )
+  }
+
+  // Show login screen if not authenticated
+  if (!session) {
+    return <Login onLoginSuccess={() => {}} />
   }
 
   return (
