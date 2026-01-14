@@ -51,10 +51,13 @@ export function Login({ onLoginSuccess }: LoginProps) {
     setIsLoading(true)
 
     try {
+      // Get the correct redirect URL based on environment
+      const redirectTo = window.location.origin + window.location.pathname
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin,
+          redirectTo,
         },
       })
 
