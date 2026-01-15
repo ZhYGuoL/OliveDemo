@@ -59,6 +59,7 @@ function AppContent() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+  const [showUserMenu, setShowUserMenu] = useState(false)
   const { toast, dismiss } = useToast()
 
   // Check for existing Supabase session on mount
@@ -77,7 +78,22 @@ function AppContent() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Logout handler (TODO: Add logout button to UI)
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (showUserMenu && !target.closest('.user-profile-wrapper') && !target.closest('.user-profile-collapsed')) {
+        setShowUserMenu(false)
+      }
+    }
+
+    if (showUserMenu) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showUserMenu])
+
+  // Logout handler
   const handleLogout = async () => {
     await supabase.auth.signOut()
     setDbConnected(false)
@@ -87,6 +103,7 @@ function AppContent() {
     setResult(null)
     setShowChat(false)
     setChatHistory([])
+    setShowUserMenu(false)
   }
 
   // Helper to get auth headers (TODO: Use in API calls)
@@ -99,9 +116,29 @@ function AppContent() {
     return headers
   }
 
-  // Prevent unused variable warnings (these will be used in future updates)
-  void handleLogout
+  // Prevent unused variable warning for getAuthHeaders (will be used in future updates)
   void getAuthHeaders
+
+  // Get user display info
+  const getUserDisplayName = () => {
+    if (!session?.user) return 'User'
+    const email = session.user.email || ''
+    const name = session.user.user_metadata?.full_name || session.user.user_metadata?.name
+    return name || email.split('@')[0]
+  }
+
+  const getUserEmail = () => {
+    return session?.user?.email || ''
+  }
+
+  const getUserInitials = () => {
+    const displayName = getUserDisplayName()
+    const parts = displayName.split(' ')
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase()
+    }
+    return displayName.substring(0, 2).toUpperCase()
+  }
 
   const LOCAL_STORAGE_KEY = 'chatSessions'
   const MAX_SESSIONS = 20
@@ -544,6 +581,43 @@ function AppContent() {
     }
   }
 
+  const handleDemoConnect = async () => {
+    // Show loading toast
+    const loadingToastId = toast("Connecting to demo database...", "loading", 0)
+
+    try {
+      const response = await fetch(apiEndpoint('connect/demo'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('supabase_token')}`,
+        },
+      })
+
+      dismiss(loadingToastId)
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || 'Failed to connect to demo database')
+      }
+
+      await response.json()
+      await checkDatabaseConnection()
+
+      toast("Connected to demo database successfully!", "success", 3000)
+      setError(null)
+    } catch (err) {
+      dismiss(loadingToastId)
+
+      let errorMessage = 'Failed to connect to demo database'
+      if (err instanceof Error) {
+        errorMessage = err.message
+      }
+
+      toast(`Connection failed: ${errorMessage}`, "error", 5000)
+    }
+  }
+
   const handleChatMessage = async (message: string) => {
     // TipTap clean text
     const cleanMessage = message.trim()
@@ -765,15 +839,25 @@ function AppContent() {
             </div>
             
             <div className="sidebar-footer">
-              <div className="user-profile">
-                <div className="user-avatar">ZG</div>
-                <div className="user-info">
-                  <div className="user-name">Zhiyuan Guo</div>
-                  <div className="user-org">
-                    Peanuts Inc.
-                    <span className="dropdown-arrow">▼</span>
+              <div className="user-profile-wrapper">
+                <div className="user-profile" onClick={() => setShowUserMenu(!showUserMenu)}>
+                  <div className="user-avatar">{getUserInitials()}</div>
+                  <div className="user-info">
+                    <div className="user-name">{getUserDisplayName()}</div>
+                    <div className="user-org">
+                      {getUserEmail()}
+                      <span className="dropdown-arrow">▼</span>
+                    </div>
                   </div>
                 </div>
+                {showUserMenu && (
+                  <div className="user-menu-dropdown">
+                    <button className="user-menu-item" onClick={handleLogout}>
+                      <span>🚪</span>
+                      Sign Out
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </>
@@ -794,8 +878,18 @@ function AppContent() {
             </div>
             
             <div className="sidebar-footer">
-              <div className="user-profile-collapsed" title="Zhiyuan Guo - Peanuts Inc.">
-                <div className="user-avatar">ZG</div>
+              <div className="user-profile-collapsed"
+                   title={`${getUserDisplayName()} - ${getUserEmail()}`}
+                   onClick={() => setShowUserMenu(!showUserMenu)}>
+                <div className="user-avatar">{getUserInitials()}</div>
+                {showUserMenu && (
+                  <div className="user-menu-dropdown-collapsed">
+                    <button className="user-menu-item" onClick={handleLogout}>
+                      <span>🚪</span>
+                      Sign Out
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -819,6 +913,7 @@ function AppContent() {
         isOpen={showDataSourceModal}
         onClose={() => setShowDataSourceModal(false)}
         onSelect={handleDataSourceSelect}
+        onDemoConnect={handleDemoConnect}
       />
 
       {selectedDataSource && (

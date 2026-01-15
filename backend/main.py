@@ -216,6 +216,79 @@ async def connect_database(request: Request, connect_request: ConnectRequest, cu
             detail=f"Failed to connect to database: {str(e)}"
         )
 
+@app.post("/connect/demo")
+@limiter.limit("10/minute")
+async def connect_demo_database(request: Request, current_user: dict = Depends(auth.get_current_user)):
+    """Connect to the demo database for testing."""
+    demo_url = os.getenv("DEMO_DATABASE_URL")
+
+    if not demo_url:
+        raise HTTPException(
+            status_code=503,
+            detail="Demo database is not available at this time"
+        )
+
+    logger.info(f"User {current_user['id']} connecting to demo database")
+
+    try:
+        # Validate the demo connection
+        from database_adapters import get_database_adapter
+        import asyncio
+        import concurrent.futures
+
+        def test_connection_sync():
+            """Synchronous connection test function."""
+            adapter = get_database_adapter(database_url=demo_url, db_path=None)
+            conn = adapter.connect()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+                cursor.close()
+            finally:
+                conn.close()
+
+        # Run connection test in thread pool with timeout
+        loop = asyncio.get_running_loop()
+
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = loop.run_in_executor(executor, test_connection_sync)
+                await asyncio.wait_for(future, timeout=15.0)
+        except asyncio.TimeoutError:
+            raise HTTPException(
+                status_code=503,
+                detail="Demo database is temporarily unavailable. Please try again later."
+            )
+        except Exception as conn_error:
+            logger.error(f"Demo database connection failed: {str(conn_error)}", exc_info=True)
+            raise HTTPException(
+                status_code=503,
+                detail="Demo database is temporarily unavailable. Please try again later."
+            )
+
+        # Set the database connection for this user
+        user_id = current_user["id"]
+        database.set_user_database(user_id, demo_url, name="Demo Database")
+
+        logger.info(f"User {user_id} connected to demo database")
+
+        return {
+            "status": "connected",
+            "message": "Connected to demo database",
+            "database_type": database.get_user_database_type(user_id),
+            "database_name": "Demo Database",
+            "is_demo": True
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Demo database connection error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=503,
+            detail="Demo database is temporarily unavailable. Please try again later."
+        )
+
 @app.post("/disconnect")
 @limiter.limit("10/minute")
 async def disconnect_database(request: Request, current_user: dict = Depends(auth.get_current_user)):
