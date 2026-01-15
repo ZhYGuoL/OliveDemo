@@ -194,17 +194,18 @@ async def connect_database(request: Request, connect_request: ConnectRequest, cu
                 detail=f"Failed to connect to database: {str(conn_error)}"
             )
         
-        # Set the database connection using the module function (persists until manually disconnected)
-        database.set_database_url(connect_request.database_url)
-        
-        logger.info(f"Database connected successfully: {connect_request.database_url.split('@')[1] if '@' in connect_request.database_url else 'connected'}")
-        
+        # Set the database connection for this user ONLY
+        user_id = current_user["id"]
+        database.set_user_database(user_id, connect_request.database_url)
+
+        logger.info(f"User {user_id} connected to database")
+
         # Return connection info
         return {
-            "status": "connected", 
+            "status": "connected",
             "message": "Database connected successfully",
-            "database_type": database.get_database_type(),
-            "database_name": database.get_database_name()
+            "database_type": database.get_user_database_type(user_id),
+            "database_name": database.get_user_database_name(user_id)
         }
     except HTTPException:
         raise
@@ -215,52 +216,30 @@ async def connect_database(request: Request, connect_request: ConnectRequest, cu
             detail=f"Failed to connect to database: {str(e)}"
         )
 
-@app.get("/connections")
-@limiter.limit("20/minute")
-async def get_connections(request: Request, current_user: str = Depends(auth.get_current_user)):
-    """Get list of saved database connections."""
-    return {"connections": database.get_connections()}
-
-@app.post("/switch_connection")
-@limiter.limit("10/minute")
-async def switch_connection_endpoint(req: Request, request: Dict[str, str], current_user: str = Depends(auth.get_current_user)):
-    """Switch to a saved connection by ID."""
-    connection_id = request.get("id")
-    if not connection_id:
-        raise HTTPException(status_code=400, detail="Connection ID is required")
-    
-    if database.switch_connection(connection_id):
-        return {
-            "status": "switched", 
-            "message": "Switched database connection successfully",
-            "database_type": database.get_database_type(),
-            "database_name": database.get_database_name()
-        }
-    else:
-        raise HTTPException(status_code=404, detail="Connection not found")
-
 @app.post("/disconnect")
 @limiter.limit("10/minute")
-async def disconnect_database(request: Request, current_user: str = Depends(auth.get_current_user)):
+async def disconnect_database(request: Request, current_user: dict = Depends(auth.get_current_user)):
     """Disconnect from the current database."""
-    # Fast disconnect - just clear the connection state
-    database.clear_database_connection()
-    logger.info("Database disconnected successfully")
+    # Clear the connection state for this user only
+    user_id = current_user["id"]
+    database.clear_user_database(user_id)
+    logger.info(f"User {user_id} disconnected from database")
     return {"status": "disconnected"}
 
 @app.get("/schema")
 @limiter.limit("30/minute")
-async def get_schema(request: Request, current_user: str = Depends(auth.get_current_user)):
+async def get_schema(request: Request, current_user: dict = Depends(auth.get_current_user)):
     """Get database schema to verify connection."""
     try:
-        # Check if database is connected
-        current_url = database.get_current_database_url()
+        user_id = current_user["id"]
+        # Check if database is connected for this user
+        current_url = database.get_user_database_url(user_id)
         if not current_url:
             return {"schema": "", "connected": False, "database_type": None, "database_name": None, "tables": []}
 
-        schema = database.get_schema_ddl()
-        database_type = database.get_database_type()
-        database_name = database.get_database_name()
+        schema = database.get_schema_ddl(user_id)
+        database_type = database.get_user_database_type(user_id)
+        database_name = database.get_user_database_name(user_id)
 
         # Extract table names from schema
         import re
@@ -287,15 +266,16 @@ async def get_schema(request: Request, current_user: str = Depends(auth.get_curr
 
 @app.get("/suggestions")
 @limiter.limit("10/minute")
-async def get_dashboard_suggestions(request: Request, current_user: str = Depends(auth.get_current_user)):
+async def get_dashboard_suggestions(request: Request, current_user: dict = Depends(auth.get_current_user)):
     """Get dashboard suggestions based on the connected database schema."""
     try:
-        # Check if database is connected
-        current_url = database.get_current_database_url()
+        user_id = current_user["id"]
+        # Check if database is connected for this user
+        current_url = database.get_user_database_url(user_id)
         if not current_url:
             return {"suggestions": []}
 
-        schema = database.get_schema_ddl()
+        schema = database.get_schema_ddl(user_id)
 
         # Extract table names from schema
         import re
@@ -319,13 +299,14 @@ async def get_dashboard_suggestions(request: Request, current_user: str = Depend
 
 @app.post("/generate_dashboard", response_model=GenerateDashboardResponse)
 @limiter.limit("10/minute")
-async def generate_dashboard(req: Request, request: GenerateDashboardRequest, current_user: str = Depends(auth.get_current_user)):
+async def generate_dashboard(req: Request, request: GenerateDashboardRequest, current_user: dict = Depends(auth.get_current_user)):
     """
     Generate dashboard spec and fetch data.
     """
     try:
-        # Get database schema
-        db_schema_ddl = database.get_schema_ddl()
+        user_id = current_user["id"]
+        # Get database schema for this user
+        db_schema_ddl = database.get_schema_ddl(user_id)
         
         # Parse table references from prompt (e.g., @users, @orders)
         from prompt_utils import parse_table_references, filter_schema_by_tables
@@ -338,7 +319,7 @@ async def generate_dashboard(req: Request, request: GenerateDashboardRequest, cu
             # If filtering resulted in empty schema, warn but continue with full schema
             if not db_schema_ddl.strip() or "CREATE TABLE" not in db_schema_ddl:
                 logger.warning(f"Filtered schema is empty for tables {referenced_tables}, using full schema")
-                db_schema_ddl = database.get_schema_ddl()
+                db_schema_ddl = database.get_schema_ddl(user_id)
         
         # Generate Spec via LLM
         try:
@@ -369,7 +350,7 @@ async def generate_dashboard(req: Request, request: GenerateDashboardRequest, cu
             if source_id and sql_query:
                 try:
                     logger.info(f"Executing query for source {source_id}")
-                    results = database.execute_select_query(sql_query, limit=1000)
+                    results = database.execute_select_query(user_id, sql_query, limit=1000)
                     data_results[source_id] = results
                 except ValueError as e:
                     logger.warning(f"SQL failed for source {source_id}: {str(e)}")

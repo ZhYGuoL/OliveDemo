@@ -1,4 +1,4 @@
-"""Database layer for schema introspection and SQL execution."""
+"""Database layer for schema introspection and SQL execution with per-user session isolation."""
 import os
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
@@ -7,234 +7,144 @@ from database_adapters import get_database_adapter, DatabaseAdapter
 # Load environment variables from .env file
 load_dotenv()
 
-# Create database adapter instance (singleton pattern)
-_adapter: Optional[DatabaseAdapter] = None
-_current_database_url: Optional[str] = None
+# Store per-user database connections: { "user_id": { "url": str, "adapter": DatabaseAdapter, "name": str } }
+_user_connections: Dict[str, Dict[str, Any]] = {}
 
-# Store multiple connections: { "connection_id": "database_url" }
-_connections: Dict[str, str] = {}
-_connection_names: Dict[str, str] = {}  # Optional: store user-friendly names
+def set_user_database(user_id: str, database_url: str, name: Optional[str] = None) -> None:
+    """Set the database URL for a specific user session."""
+    if user_id not in _user_connections:
+        _user_connections[user_id] = {}
 
-def add_connection(database_url: str, name: Optional[str] = None) -> str:
-    """Add a new database connection and return its ID."""
-    import hashlib
-    # Generate a simple ID based on the URL
-    connection_id = hashlib.md5(database_url.encode()).hexdigest()
-    _connections[connection_id] = database_url
-    
-    # Store name or generate one from the URL if not provided
-    if name:
-        _connection_names[connection_id] = name
-    else:
-        # Try to extract a meaningful name
+    # Extract name from URL if not provided
+    if not name:
         try:
             from urllib.parse import urlparse
             parsed = urlparse(database_url)
             db_name = parsed.path.lstrip('/')
-            if not db_name:
-                db_name = "Database"
-            _connection_names[connection_id] = db_name
+            name = db_name if db_name else "Database"
         except:
-            _connection_names[connection_id] = "Database"
-            
-    return connection_id
+            name = "Database"
 
-def get_connections() -> List[Dict[str, str]]:
-    """Get all saved connections."""
-    return [
-        {"id": cid, "url": url, "name": _connection_names.get(cid, "Database")}
-        for cid, url in _connections.items()
-    ]
+    _user_connections[user_id] = {
+        "url": database_url,
+        "adapter": None,  # Will be created on first use
+        "name": name
+    }
 
-def switch_connection(connection_id: str) -> bool:
-    """Switch the active connection to the specified ID."""
-    if connection_id in _connections:
-        set_database_url(_connections[connection_id])
-        return True
-    return False
+def clear_user_database(user_id: str) -> None:
+    """Clear the database connection for a specific user."""
+    if user_id in _user_connections:
+        del _user_connections[user_id]
 
-def set_database_url(database_url: str) -> None:
-    """Set the database URL and reset the adapter to use the new connection."""
-    global _adapter, _current_database_url
-    
-    # Check if this URL is already saved, if not add it
-    import hashlib
-    connection_id = hashlib.md5(database_url.encode()).hexdigest()
-    if connection_id not in _connections:
-        add_connection(database_url)
-        
-    _current_database_url = database_url
-    _adapter = None  # Reset adapter to force recreation with new URL
-    # Also set in environment for compatibility
-    os.environ["DATABASE_URL"] = database_url
+def get_user_database_url(user_id: str) -> Optional[str]:
+    """Get the currently connected database URL for a specific user."""
+    if user_id in _user_connections:
+        return _user_connections[user_id]["url"]
+    return None
 
-def clear_database_connection() -> None:
-    """Clear the database connection (disconnect)."""
-    global _adapter, _current_database_url
-    _adapter = None
-    _current_database_url = None
-    # Remove from environment
-    if "DATABASE_URL" in os.environ:
-        del os.environ["DATABASE_URL"]
-
-def get_current_database_url() -> Optional[str]:
-    """Get the currently connected database URL."""
-    return _current_database_url
-
-def get_database_type() -> Optional[str]:
-    """Get the type of the currently connected database."""
+def get_user_database_type(user_id: str) -> Optional[str]:
+    """Get the type of the currently connected database for a user."""
     try:
-        adapter = _get_adapter()
-        # Check the adapter type
+        url = get_user_database_url(user_id)
+        if not url:
+            return None
+
+        adapter = _get_user_adapter(user_id)
         adapter_type = type(adapter).__name__
+
         if 'PostgreSQL' in adapter_type:
-            # Check if it's Supabase by looking at the URL
-            url = _current_database_url or os.getenv("DATABASE_URL", "")
             if 'supabase' in url.lower():
                 return 'Supabase'
             return 'PostgreSQL'
         elif 'MySQL' in adapter_type:
             return 'MySQL'
+        elif 'SQLite' in adapter_type:
+            return 'SQLite'
         return 'Unknown'
-    except RuntimeError:
-        return None
-    except Exception:
+    except:
         return None
 
-def get_database_name() -> Optional[str]:
-    """Get the name of the currently connected database."""
+def get_user_database_name(user_id: str) -> Optional[str]:
+    """Get the name of the currently connected database for a user."""
     try:
-        from urllib.parse import urlparse, unquote
-        url = _current_database_url or os.getenv("DATABASE_URL", "")
+        url = get_user_database_url(user_id)
         if not url:
             return None
-        
-        # Handle URLs with brackets in password (e.g., [PASSWORD])
-        # Replace brackets temporarily for parsing
+
+        from urllib.parse import urlparse
+
+        # Handle URLs with brackets in password
         url_for_parsing = url.replace('[', '%5B').replace(']', '%5D')
-        
+
         try:
             parsed = urlparse(url_for_parsing)
-        except Exception:
-            # Fallback: try parsing original URL
+        except:
             parsed = urlparse(url)
-        
+
         hostname = parsed.hostname or ""
-        
-        # For Supabase, extract project reference ID from hostname
+
+        # For Supabase, extract project reference ID
         if 'supabase' in url.lower():
-            # Supabase hostname formats:
-            # - db.xxxxx.supabase.co (direct connection)
-            # - xxxxx.pooler.supabase.com (pooled connection)
-            # - aws-0-us-west-1.pooler.supabase.com (pooled with region)
-            
-            # Try direct connection format: db.xxxxx.supabase.co
             if 'db.' in hostname and '.supabase.co' in hostname:
                 parts = hostname.split('.')
                 if len(parts) >= 2:
-                    project_ref = parts[1]  # The part after 'db.'
+                    project_ref = parts[1]
                     if project_ref and project_ref != 'supabase' and len(project_ref) > 3:
                         return project_ref
-            
-            # Try pooled connection format: xxxxx.pooler.supabase.com
+
             if '.pooler.supabase.com' in hostname:
                 parts = hostname.split('.')
                 if len(parts) >= 1:
-                    project_ref = parts[0]  # The first part
-                    # Skip AWS region prefixes
+                    project_ref = parts[0]
                     if project_ref and not project_ref.startswith('aws-') and len(project_ref) > 3:
                         return project_ref
-            
-            # If we couldn't extract from URL, try querying the database
-            try:
-                adapter = _get_adapter()
-                conn = adapter.connect()
-                cursor = conn.cursor()
-                cursor.execute("SELECT current_database()")
-                db_name = cursor.fetchone()[0]
-                cursor.close()
-                conn.close()
-                # For Supabase, if it's "postgres", try to get project ref from connection info
-                if db_name == "postgres":
-                    # Try to extract from URL one more time using regex
-                    import re
-                    match = re.search(r'db\.([a-z0-9]+)\.supabase\.co', url.lower())
-                    if match:
-                        return match.group(1)
-                    return None
-                return db_name
-            except Exception:
-                pass
-            
-            # Last resort: return None (frontend won't show database name)
+
             return None
-        
-        # For other databases, use the path (database name)
+
+        # For other databases, use the path
         db_name = parsed.path.lstrip('/')
-        # Remove any query parameters or fragments
         if '?' in db_name:
             db_name = db_name.split('?')[0]
         if db_name:
             return db_name
-        
-        # Fallback: try querying the database directly
-        try:
-            adapter = _get_adapter()
-            conn = adapter.connect()
-            cursor = conn.cursor()
-            cursor.execute("SELECT current_database()")
-            db_name = cursor.fetchone()[0]
-            cursor.close()
-            conn.close()
-            return db_name
-        except Exception:
-            return None
-    except Exception as e:
-        import logging
-        logging.error(f"Error getting database name: {e}")
+
+        return None
+    except:
         return None
 
-def _get_adapter() -> DatabaseAdapter:
-    """Get or create the database adapter instance."""
-    global _adapter, _current_database_url
-    
-    # Use stored connection URL as source of truth, fallback to environment variable
-    database_url = _current_database_url
-    if database_url is None:
-        database_url = os.getenv("DATABASE_URL", None)
-        if database_url:
-            _current_database_url = database_url
-    
-    # If no connection URL is available, raise error
-    if not database_url:
+def _get_user_adapter(user_id: str) -> DatabaseAdapter:
+    """Get or create the database adapter instance for a specific user."""
+    if user_id not in _user_connections:
         raise RuntimeError("No database connected. Please connect a data source first.")
-    
-    # Create adapter if it doesn't exist or if URL changed
-    if _adapter is None or _current_database_url != database_url:
-        _adapter = get_database_adapter(database_url=database_url, db_path=None)
-        _current_database_url = database_url
-    
-    return _adapter
 
-def get_schema_ddl() -> str:
+    conn_info = _user_connections[user_id]
+
+    # Create adapter if it doesn't exist
+    if conn_info["adapter"] is None:
+        conn_info["adapter"] = get_database_adapter(database_url=conn_info["url"], db_path=None)
+
+    return conn_info["adapter"]
+
+def get_schema_ddl(user_id: str) -> str:
     """
-    Introspect the database schema and return DDL as a string.
+    Introspect the database schema and return DDL as a string for a specific user.
     Returns all CREATE TABLE statements.
     """
-    adapter = _get_adapter()
+    adapter = _get_user_adapter(user_id)
     return adapter.get_schema_ddl()
 
-def execute_select_query(sql: str, limit: int = 100) -> List[Dict[str, Any]]:
+def execute_select_query(user_id: str, sql: str, limit: int = 100) -> List[Dict[str, Any]]:
     """
-    Execute a SELECT query and return results as a list of dictionaries.
-    
+    Execute a SELECT query for a specific user and return results as a list of dictionaries.
+
     Args:
+        user_id: User identifier for session isolation
         sql: SQL SELECT query string
         limit: Maximum number of rows to return
-        
+
     Returns:
         List of dictionaries where keys are column names
-        
+
     Raises:
         ValueError: If SQL is not a SELECT query or execution fails
     """
@@ -242,15 +152,14 @@ def execute_select_query(sql: str, limit: int = 100) -> List[Dict[str, Any]]:
     sql_upper = sql.strip().upper()
     if not sql_upper.startswith("SELECT"):
         raise ValueError("Only SELECT queries are allowed")
-    
-    # Additional safety: reject dangerous keywords (check for keywords that could be used maliciously)
-    dangerous_keywords = ["DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "CREATE", "TRUNCATE", 
+
+    # Additional safety: reject dangerous keywords
+    dangerous_keywords = ["DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "CREATE", "TRUNCATE",
                           "EXEC", "EXECUTE", "ATTACH", "DETACH", "PRAGMA"]
-    sql_normalized = " " + sql_upper + " "  # Add spaces for safer keyword detection
+    sql_normalized = " " + sql_upper + " "
     for keyword in dangerous_keywords:
         if f" {keyword} " in sql_normalized:
             raise ValueError(f"Query contains forbidden keyword: {keyword}")
-    
-    adapter = _get_adapter()
-    return adapter.execute_select_query(sql, limit)
 
+    adapter = _get_user_adapter(user_id)
+    return adapter.execute_select_query(sql, limit)
