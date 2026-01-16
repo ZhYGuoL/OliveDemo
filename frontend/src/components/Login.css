@@ -109,18 +109,20 @@
 
 .login-button {
   padding: 14px;
-  background-color: #0f4a28;
-  color: white;
+  background-color: #0f4a28 !important;
+  color: white !important;
   border: none;
   border-radius: 8px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
+  display: block;
+  width: 100%;
 }
 
 .login-button:hover:not(:disabled) {
-  background-color: #0a3d1f;
+  background-color: #0a3d1f !important;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(15, 74, 40, 0.3);
 }
@@ -132,6 +134,7 @@
 .login-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  background-color: #9ca3af !important;
 }
 
 .login-divider {
@@ -158,9 +161,9 @@
 .google-button {
   width: 100%;
   padding: 12px;
-  background-color: white;
-  color: #374151;
-  border: 1px solid #e5e7eb;
+  background-color: white !important;
+  color: #374151 !important;
+  border: 1px solid #e5e7eb !important;
   border-radius: 8px;
   font-size: 0.95rem;
   font-weight: 500;
@@ -173,8 +176,8 @@
 }
 
 .google-button:hover:not(:disabled) {
-  background-color: #f9fafb;
-  border-color: #d1d5db;
+  background-color: #f9fafb !important;
+  border-color: #d1d5db !important;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
@@ -190,17 +193,18 @@
 
 .switch-mode-button {
   padding: 12px;
-  background: transparent;
-  color: #0f4a28;
+  background: transparent !important;
+  color: #0f4a28 !important;
   border: none;
   border-radius: 8px;
   font-size: 0.9rem;
   cursor: pointer;
   transition: background-color 0.2s;
+  width: 100%;
 }
 
 .switch-mode-button:hover:not(:disabled) {
-  background-color: #f3f4f6;
+  background-color: #f3f4f6 !important;
 }
 
 .switch-mode-button:disabled {

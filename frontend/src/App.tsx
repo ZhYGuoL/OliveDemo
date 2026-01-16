@@ -586,12 +586,10 @@ function AppContent() {
     const loadingToastId = toast("Connecting to demo database...", "loading", 0)
 
     try {
+      const headers = await getAuthHeaders()
       const response = await fetch(apiEndpoint('connect/demo'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('supabase_token')}`,
-        },
+        headers,
       })
 
       dismiss(loadingToastId)
