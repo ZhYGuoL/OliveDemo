@@ -159,6 +159,47 @@ def generate_dashboard(user_prompt: str, db_schema_ddl: str, referenced_tables: 
     response_text = call_llm(user_prompt, db_schema_ddl, referenced_tables)
     return parse_llm_response(response_text)
 
+def generate_chat_title(user_prompt: str, spec: Dict[str, Any]) -> str:
+    """
+    Generate a concise, relevant title for a chat session based on the user's prompt and generated dashboard.
+    """
+    dashboard_title = spec.get("title", "")
+    widgets = spec.get("widgets", [])
+    widget_types = [w.get("type", "") for w in widgets]
+
+    title_prompt = f"""Generate a short, descriptive title (3-6 words) for a chat session about creating a data dashboard.
+
+User's request: {user_prompt}
+Dashboard title: {dashboard_title}
+Widget types used: {', '.join(widget_types)}
+
+The title should:
+- Be concise (3-6 words max)
+- Describe the purpose of the dashboard
+- Not include words like "Dashboard" or "Analytics" unless essential
+- Be in title case
+
+Return ONLY the title text, nothing else. No quotes, no explanation."""
+
+    try:
+        model = genai.GenerativeModel(GEMINI_MODEL)
+        generation_config = {
+            "temperature": 0.3,
+            "max_output_tokens": 50,
+        }
+        response = model.generate_content(
+            title_prompt,
+            generation_config=generation_config
+        )
+        title = response.text.strip().strip('"').strip("'")
+        # Ensure reasonable length
+        if len(title) > 50:
+            title = title[:47] + "..."
+        return title if title else user_prompt[:40]
+    except Exception as e:
+        logger.warning(f"Failed to generate chat title via LLM: {e}")
+        return user_prompt[:40].strip()
+
 def generate_dashboard_suggestions(db_schema_ddl: str, table_names: list = None) -> list:
     """
     Generate dashboard suggestions based on database schema.

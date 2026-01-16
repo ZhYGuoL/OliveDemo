@@ -46,6 +46,7 @@ class GenerateDashboardRequest(BaseModel):
 class GenerateDashboardResponse(BaseModel):
     spec: Dict[str, Any]
     data: Dict[str, List[Dict[str, Any]]]
+    suggested_title: Optional[str] = None
 
 class ConnectRequest(BaseModel):
     database_url: str
@@ -430,9 +431,19 @@ async def generate_dashboard(req: Request, request: GenerateDashboardRequest, cu
                     # Return empty list on error but don't fail the whole request
                     data_results[source_id] = []
         
+        # Generate a suggested title for the chat based on the prompt and dashboard
+        suggested_title = None
+        try:
+            suggested_title = llm_service.generate_chat_title(request.prompt, spec)
+        except Exception as e:
+            logger.warning(f"Failed to generate chat title: {str(e)}")
+            # Fallback to truncated prompt
+            suggested_title = request.prompt[:40].strip()
+
         return GenerateDashboardResponse(
             spec=spec,
-            data=data_results
+            data=data_results,
+            suggested_title=suggested_title
         )
     
     except HTTPException:

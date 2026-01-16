@@ -16,6 +16,7 @@ import { ToastProvider, useToast } from './components/ui/ToastContext'
 interface DashboardResponse {
   spec: DashboardSpec
   data: Record<string, any[]>
+  suggested_title?: string
 }
 
 interface DashboardSnapshot {
@@ -140,7 +141,8 @@ function AppContent() {
     return displayName.substring(0, 2).toUpperCase()
   }
 
-  const LOCAL_STORAGE_KEY = 'chatSessions'
+  // Use user-specific storage key for chat sessions
+  const getStorageKey = () => session?.user?.id ? `chatSessions_${session.user.id}` : null
   const MAX_SESSIONS = 20
   const MAX_ROWS_PER_SOURCE = 200
 
@@ -195,10 +197,20 @@ function AppContent() {
     }
   }
 
-  // Load saved sessions on mount
+  // Load saved sessions when user changes
   useEffect(() => {
+    const storageKey = getStorageKey()
+    if (!storageKey) {
+      // No user logged in, clear sessions
+      setChatSessions([])
+      setActiveSessionId(null)
+      setChatHistory([])
+      setResult(null)
+      setShowChat(false)
+      return
+    }
     try {
-      const stored = localStorage.getItem(LOCAL_STORAGE_KEY)
+      const stored = localStorage.getItem(storageKey)
       if (stored) {
         const parsedRaw = JSON.parse(stored)
         const parsed: ChatSession[] = Array.isArray(parsedRaw)
@@ -211,22 +223,35 @@ function AppContent() {
           setChatHistory(latest.messages)
           setResult(latest.result)
           setShowChat(latest.messages.length > 0)
+        } else {
+          setActiveSessionId(null)
+          setChatHistory([])
+          setResult(null)
+          setShowChat(false)
         }
+      } else {
+        setChatSessions([])
+        setActiveSessionId(null)
+        setChatHistory([])
+        setResult(null)
+        setShowChat(false)
       }
     } catch {
       // ignore load errors
     }
-  }, [])
+  }, [session?.user?.id])
 
   // Persist sessions
   useEffect(() => {
+    const storageKey = getStorageKey()
+    if (!storageKey) return // Don't persist if no user
     try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(chatSessions))
+      localStorage.setItem(storageKey, JSON.stringify(chatSessions))
     } catch (e) {
       // storage might fail (quota); ignore persist errors
       console.warn('Failed to persist chat sessions', e)
     }
-  }, [chatSessions])
+  }, [chatSessions, session?.user?.id])
 
   const findSession = (id: string | null) => chatSessions.find(s => s.id === id)
 
@@ -386,11 +411,11 @@ function AppContent() {
       } else {
         // First query, just set the result
         setResult(data)
-        
+
         if (!showChat) {
           setShowChat(true)
         }
-        
+
       const assistantMessage: ChatSession['messages'][number] = {
           role: 'assistant',
           content: `I've generated a dashboard based on your request: "${userMessage}".`
@@ -403,8 +428,11 @@ function AppContent() {
         result: trimResult(data)!,
         createdAt: new Date().toISOString(),
       }
+      // Use LLM-suggested title if available, otherwise use truncated prompt
+      const sessionTitle = data.suggested_title || userMessage.slice(0, 40) || 'New chat'
       const finalSession: ChatSession = {
           ...updatedSession,
+          title: sessionTitle,
           messages: finalMessages,
         result: trimResult(data),
         dashboards: [...updatedSession.dashboards, dashboardSnapshot].slice(0, MAX_SESSIONS),
@@ -439,14 +467,17 @@ function AppContent() {
     }
   }
 
-  // Check database connection status on mount
+  // Check database connection status on mount and when session changes
   useEffect(() => {
-    checkDatabaseConnection()
-  }, [])
+    if (session) {
+      checkDatabaseConnection()
+    }
+  }, [session])
 
   const checkDatabaseConnection = async () => {
     try {
-      const schemaResponse = await fetch(apiEndpoint('schema'))
+      const headers = await getAuthHeaders()
+      const schemaResponse = await fetch(apiEndpoint('schema'), { headers })
       if (schemaResponse.ok) {
         const data = await schemaResponse.json()
         setDbConnected(data.connected || false)
