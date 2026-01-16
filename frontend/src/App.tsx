@@ -1020,6 +1020,7 @@ function AppContent() {
                     // Optionally auto-submit, or just populate the input
                   }}
                   dbConnected={dbConnected}
+                  getAuthHeaders={getAuthHeaders}
                 />
               )}
             </>

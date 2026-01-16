@@ -13,9 +13,10 @@ interface DashboardSuggestion {
 interface DashboardSuggestionsProps {
   onSelectSuggestion: (prompt: string) => void
   dbConnected: boolean
+  getAuthHeaders: () => Promise<Record<string, string>>
 }
 
-export function DashboardSuggestions({ onSelectSuggestion, dbConnected }: DashboardSuggestionsProps) {
+export function DashboardSuggestions({ onSelectSuggestion, dbConnected, getAuthHeaders }: DashboardSuggestionsProps) {
   const [suggestions, setSuggestions] = useState<DashboardSuggestion[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -32,7 +33,8 @@ export function DashboardSuggestions({ onSelectSuggestion, dbConnected }: Dashbo
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(apiEndpoint('suggestions'))
+      const headers = await getAuthHeaders()
+      const response = await fetch(apiEndpoint('suggestions'), { headers })
       if (response.ok) {
         const data = await response.json()
         setSuggestions(data.suggestions || [])
