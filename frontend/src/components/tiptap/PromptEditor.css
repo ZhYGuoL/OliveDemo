@@ -1,17 +1,8 @@
 /* Editor Wrapper */
 .prompt-editor-wrapper {
   width: 100%;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
   background-color: #ffffff;
-  transition: box-shadow 0.2s, border-color 0.2s;
-  overflow: hidden;
   cursor: text; /* Make the whole box look clickable */
-}
-
-.prompt-editor-wrapper:focus-within {
-  border-color: #0f4a28;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 /* The actual editable area (ProseMirror) */

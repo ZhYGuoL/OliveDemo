@@ -469,8 +469,33 @@
 }
 
 .prompt-input-wrapper {
-  position: relative;
+  display: flex;
+  flex-direction: column;
   margin-bottom: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background-color: #ffffff;
+  overflow: hidden;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.prompt-input-wrapper:focus-within {
+  border-color: #0f4a28;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.prompt-editor-container {
+  flex: 1;
+  min-height: 100px;
+}
+
+.prompt-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #f3f4f6;
+  background-color: #fafafa;
 }
 
 .prompt-input-large {
@@ -532,9 +557,6 @@
 }
 
 .prompt-meta {
-  position: absolute;
-  bottom: 1rem;
-  left: 1.5rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -579,11 +601,8 @@
 }
 
 .submit-button {
-  position: absolute;
-  bottom: 1rem;
-  right: 1rem;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background-color: #0f4a28;
   color: white;
@@ -593,7 +612,8 @@
   align-items: center;
   justify-content: center;
   transition: background-color 0.2s;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
+  flex-shrink: 0;
 }
 
 .submit-button:hover:not(:disabled) {

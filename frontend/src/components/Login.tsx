@@ -52,7 +52,13 @@ export function Login({ onLoginSuccess }: LoginProps) {
 
     try {
       // Get the correct redirect URL based on environment
-      const redirectTo = window.location.origin + window.location.pathname
+      // For localhost: http://localhost:5173
+      // For GitHub Pages: https://zhyguol.github.io/OliveDemo
+      let redirectTo = window.location.origin
+      if (window.location.hostname !== 'localhost') {
+        // Include the base path for production (GitHub Pages)
+        redirectTo = window.location.origin + '/OliveDemo'
+      }
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',

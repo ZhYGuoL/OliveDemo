@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import './App.css'
 import { SchemaRenderer } from './components/SchemaRenderer'
 import { ChatSidebar } from './components/ChatSidebar'
 import { DataSourceModal } from './components/DataSourceModal'
 import { ConnectionForm } from './components/ConnectionForm'
 import { DatabaseSwitcher } from './components/DatabaseSwitcher'
-import { PromptEditor } from './components/tiptap/PromptEditor'
+import { PromptEditor, PromptEditorRef } from './components/tiptap/PromptEditor'
 import { DashboardSuggestions } from './components/DashboardSuggestions'
 import { Login } from './components/Login'
 import { supabase } from './supabaseClient'
@@ -62,6 +62,7 @@ function AppContent() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const { toast, dismiss } = useToast()
+  const promptEditorRef = useRef<PromptEditorRef>(null)
 
   // Check for existing Supabase session on mount
   useEffect(() => {
@@ -967,36 +968,41 @@ function AppContent() {
 
               <form onSubmit={handleSubmit} className="prompt-form">
                 <div className="prompt-input-wrapper">
-                  <PromptEditor
-                    value={prompt}
-                    onChange={setPrompt}
-                    placeholder="Build a table for me to see all my users. Use @ to see available tables."
-                    disabled={loading}
-                    availableTables={availableTables}
-                  />
-                  <div className="prompt-meta">
-                    {dbConnected ? (
-                      <DatabaseSwitcher
-                        currentDatabaseName={databaseName}
-                        currentDatabaseType={databaseType}
-                        onSwitch={checkDatabaseConnection}
-                        onAdd={() => setShowDataSourceModal(true)}
-                        onDisconnect={handleDisconnect}
-                      />
-                    ) : (
-                      <span className={`db-status ${dbConnected ? 'connected' : 'disconnected'}`}>
-                        <span className="db-icon">🗄️</span>
-                        No DB Connected
-                      </span>
-                    )}
+                  <div className="prompt-editor-container">
+                    <PromptEditor
+                      ref={promptEditorRef}
+                      value={prompt}
+                      onChange={setPrompt}
+                      placeholder="Build a table for me to see all my users. Use @ to see available tables."
+                      disabled={loading}
+                      availableTables={availableTables}
+                    />
                   </div>
-                  <button
-                    type="submit"
-                    disabled={loading || !prompt.trim()}
-                    className="submit-button"
-                  >
-                    <span className="paper-plane">✈️</span>
-                  </button>
+                  <div className="prompt-actions-row">
+                    <div className="prompt-meta">
+                      {dbConnected ? (
+                        <DatabaseSwitcher
+                          currentDatabaseName={databaseName}
+                          currentDatabaseType={databaseType}
+                          onSwitch={checkDatabaseConnection}
+                          onAdd={() => setShowDataSourceModal(true)}
+                          onDisconnect={handleDisconnect}
+                        />
+                      ) : (
+                        <span className={`db-status ${dbConnected ? 'connected' : 'disconnected'}`}>
+                          <span className="db-icon">🗄️</span>
+                          No DB Connected
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={loading || !prompt.trim()}
+                      className="submit-button"
+                    >
+                      <span className="paper-plane">✈️</span>
+                    </button>
+                  </div>
                 </div>
               </form>
 
@@ -1015,9 +1021,13 @@ function AppContent() {
 
               {dbConnected && (
                 <DashboardSuggestions
-                  onSelectSuggestion={(prompt) => {
-                    setPrompt(prompt)
-                    // Optionally auto-submit, or just populate the input
+                  onSelectSuggestion={(suggestionPrompt, tables) => {
+                    if (tables && tables.length > 0 && promptEditorRef.current) {
+                      // Use the ref method to insert content with table pills
+                      promptEditorRef.current.insertContentWithMentions(suggestionPrompt, tables)
+                    } else {
+                      setPrompt(suggestionPrompt)
+                    }
                   }}
                   dbConnected={dbConnected}
                   getAuthHeaders={getAuthHeaders}

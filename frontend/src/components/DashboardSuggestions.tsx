@@ -11,7 +11,7 @@ interface DashboardSuggestion {
 }
 
 interface DashboardSuggestionsProps {
-  onSelectSuggestion: (prompt: string) => void
+  onSelectSuggestion: (prompt: string, tables?: string[]) => void
   dbConnected: boolean
   getAuthHeaders: () => Promise<Record<string, string>>
 }
@@ -121,13 +121,17 @@ export function DashboardSuggestions({ onSelectSuggestion, dbConnected, getAuthH
             <button
               className="use-suggestion-button"
               onClick={() => {
-                // Construct full description as prompt
-                const fullPrompt = `${suggestion.title}
+                // Construct a well-formatted prompt
+                const titleWithPeriod = suggestion.title.endsWith('.') ? suggestion.title : `${suggestion.title}.`
+                const descWithPeriod = suggestion.description.endsWith('.') ? suggestion.description : `${suggestion.description}.`
 
-${suggestion.description}
+                // Format features as a readable sentence list
+                const featureList = suggestion.features.length > 0
+                  ? `\n\nInclude: ${suggestion.features.join(', ')}.`
+                  : ''
 
-${suggestion.features.map(f => `- ${f}`).join('\n')}`
-                onSelectSuggestion(fullPrompt)
+                const fullPrompt = `${titleWithPeriod} ${descWithPeriod}${featureList}`
+                onSelectSuggestion(fullPrompt, suggestion.tables)
               }}
             >
               <span className="play-icon">▶</span>
